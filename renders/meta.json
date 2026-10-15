@@ -1,0 +1,5823 @@
+{
+ "generator": "bergen-klei/blender/scripts/render.py",
+ "blender": "5.0.1",
+ "resolution": [
+  640,
+  360
+ ],
+ "render_seconds": {
+  "beauty": 11.1
+ },
+ "world": {
+  "units": "meter",
+  "crs": "EPSG:25832 (UTM 32N) minus origin",
+  "origin": {
+   "lat": 60.39675,
+   "lon": 5.3235,
+   "utm32_e": 297464.89067198616,
+   "utm32_n": 6701250.388389563,
+   "crs": "EPSG:25832 (UTM 32N) minus origin"
+  },
+  "z": "meter boven zeeniveau (water z=0)",
+  "tile": {
+   "center": [
+    95.0,
+    -15.0
+   ],
+   "half_u": 350.0,
+   "half_v": 270.0,
+   "right": [
+    0.7071067690849304,
+    -0.7071067690849304
+   ],
+   "forward": [
+    0.7071067690849304,
+    0.7071067690849304
+   ],
+   "table_z": -24.0
+  }
+ },
+ "camera": {
+  "type": "PERSP",
+  "lens_mm": 120.0,
+  "sensor_width_mm": 36.0,
+  "fov_x_deg": 17.06153250893588,
+  "fov_y_deg": 9.64581684908872,
+  "position": [
+   -1520.9024658203125,
+   -1630.9024658203125,
+   1815.4183349609375
+  ],
+  "target": [
+   95.0,
+   -15.0,
+   30.0
+  ],
+  "pitch_down_deg": 38.0,
+  "view_bearing_deg": 45.0,
+  "matrix_world": [
+   [
+    0.7071067094802856,
+    0.4353385269641876,
+    -0.5572077631950378,
+    -1520.9024658203125
+   ],
+   [
+    -0.7071068286895752,
+    0.4353383779525757,
+    -0.5572077035903931,
+    -1630.9024658203125
+   ],
+   [
+    -5.985359763371889e-08,
+    0.7880107164382935,
+    0.6156615614891052,
+    1815.4183349609375
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ],
+  "projection": [
+   [
+    6.666666507720947,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    11.851851463317871,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    -1.0100502967834473,
+    -100.50251007080078
+   ],
+   [
+    0.0,
+    0.0,
+    -1.0,
+    0.0
+   ]
+  ],
+  "clip": [
+   50.0,
+   10000.0
+  ]
+ },
+ "passes": {
+  "beauty.png": "AgX, 8-bit sRGB, met tilt-shift DOF (alleen deze pass)",
+  "albedo.png": "onbelichte basiskleur, 8-bit sRGB (AOV uit de shader)",
+  "normal.png": "camera-ruimte normalen (Blender: +X rechts, +Y boven, +Z naar de kijker), n*0.5+0.5, 8-bit",
+  "height.png": "16-bit, (z - height_min)/(height_max - height_min), z in meter",
+  "depth.png": "16-bit, camera-diepte (m) genormaliseerd met depth_min/max",
+  "ao.png": "Cycles AO (afstand 25 m), 8-bit sRGB",
+  "lightmap.png": "16-bit LINEAIR. R/G/B = belichting (incl. schaduw, AO, vilt) van zon uit light_dirs R/G/B op 0.8-grijze klei. Herbelichten: rgb = albedo_lin * dot(w, lm) / 0.8",
+  "mask.png": "16-bit grijs = id. 0 = tafel, 1..N gebouwen (zie mask_ids), 65001 terrein, 65002 water, 65003 bomen, 65004 sokkel",
+  "mask_preview.png": "zelfde ids als willekeurige kleuren, alleen om te bekijken"
+ },
+ "height_min": null,
+ "height_max": null,
+ "depth_min": null,
+ "depth_max": null,
+ "light_dirs": {
+  "R": {
+   "world": [
+    0.5792,
+    -0.5792,
+    0.5736
+   ],
+   "camera": [
+    0.8192,
+    0.452,
+    0.3531
+   ],
+   "meaning": "van rechts (camera), 35 graden omhoog"
+  },
+  "G": {
+   "world": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "camera": [
+    -0.0,
+    0.788,
+    0.6157
+   ],
+   "meaning": "van boven (zenit)"
+  },
+  "B": {
+   "world": [
+    -0.5792,
+    -0.5792,
+    0.5736
+   ],
+   "camera": [
+    0.0,
+    -0.0523,
+    0.9986
+   ],
+   "meaning": "van voren (vanaf de camera), 35 graden omhoog"
+  }
+ },
+ "lightmap_note": "Richtingen zijn niet orthogonaal: voor een zon s los w op uit [R G B] * w = s (3x3, kolommen = light_dirs.world), clamp w >= 0.",
+ "landmarks": {
+  "bryggen": {
+   "name": "Bryggen-houthuizen",
+   "x": 33.55872195233266,
+   "y": 94.17584293360521,
+   "z": 8.492367267608643,
+   "lat": 60.397610304635556,
+   "lon": 5.324012430402103,
+   "building_id": null,
+   "pixel": {
+    "x": 232.5,
+    "y": 177.2,
+    "in_view": true
+   }
+  },
+  "fisketorget": {
+   "name": "Fisketorget / Torget",
+   "x": -1.6273460803204216,
+   "y": -236.42066132929176,
+   "z": 7.495171785354614,
+   "lat": 60.39463046830311,
+   "lon": 5.323709719797474,
+   "building_id": 2112,
+   "pixel": {
+    "x": 388.8,
+    "y": 301.8,
+    "in_view": true
+   }
+  },
+  "floibanen": {
+   "name": "Fløibanen dalstation, Vetrlidsallmenningen 21",
+   "x": 279.0841536614462,
+   "y": -72.38728146068752,
+   "z": 18.262483596801758,
+   "lat": 60.396240767267194,
+   "lon": 5.328627080274599,
+   "building_id": 602,
+   "pixel": {
+    "x": 442.3,
+    "y": 147.1,
+    "in_view": true
+   }
+  },
+  "vagal": {
+   "name": "Vågal café, Kong Oscars gate 10",
+   "x": 229.08991370513104,
+   "y": -168.40050136856735,
+   "z": 10.90250301361084,
+   "lat": 60.39535543960604,
+   "lon": 5.327818887012066,
+   "building_id": 652,
+   "pixel": {
+    "x": 469.5,
+    "y": 197.2,
+    "in_view": true
+   }
+  },
+  "bryggens_museum": {
+   "name": "Bryggens Museum",
+   "x": -28.107906827732272,
+   "y": 183.70039263343034,
+   "z": 9.291014671325684,
+   "lat": 60.39838159602041,
+   "lon": 5.32280515836632,
+   "building_id": 163,
+   "pixel": {
+    "x": 155.7,
+    "y": 168.0,
+    "in_view": true
+   }
+  },
+  "mariakirken": {
+   "name": "Mariakirken",
+   "x": 9.40074166089322,
+   "y": 238.87916041459735,
+   "z": 13.39118242263794,
+   "lat": 60.3988947872149,
+   "lon": 5.323428566116106,
+   "building_id": 727,
+   "pixel": {
+    "x": 149.5,
+    "y": 137.3,
+    "in_view": true
+   }
+  }
+ },
+ "offscreen": {
+  "sandviken": {
+   "name": "Sandviksbatteriet",
+   "lat": 60.409,
+   "lon": 5.318,
+   "x": -226.51551756542176,
+   "y": 1379.8222531992942,
+   "pixel": {
+    "x": -416.3,
+    "y": -89.1,
+    "in_view": false
+   },
+   "screen_angle_deg": 159.9
+  },
+  "klee": {
+   "name": "Café Klee, Herman Foss gate 12",
+   "lat": 60.383,
+   "lon": 5.32,
+   "x": -278.21729892340954,
+   "y": -1519.0095180990174,
+   "pixel": {
+    "x": 1231.0,
+    "y": 1138.0,
+    "in_view": false
+   },
+   "screen_angle_deg": 313.6
+  },
+  "heit": {
+   "name": "Heit sauna Marineholmen",
+   "lat": 60.381,
+   "lon": 5.329,
+   "x": 205.0344560382655,
+   "y": -1769.2041358565912,
+   "pixel": {
+    "x": 1724.5,
+    "y": 967.8,
+    "in_view": false
+   },
+   "screen_angle_deg": 330.7
+  },
+  "nordnes": {
+   "name": "Nordnes Bydelshus",
+   "lat": 60.398,
+   "lon": 5.307,
+   "x": -900.5217638690956,
+   "y": 189.93034582585096,
+   "pixel": {
+    "x": -410.8,
+    "y": 496.7,
+    "in_view": false
+   },
+   "screen_angle_deg": 203.4
+  }
+ },
+ "mask_ids": {
+  "7": {
+   "osm": "way/165297871",
+   "name": "Fløibanen, nedre stasjon;Fløibanen",
+   "lat": 60.39641,
+   "lon": 5.328564,
+   "bryggen": false
+  },
+  "8": {
+   "osm": "way/172805968",
+   "name": null,
+   "lat": 60.393706,
+   "lon": 5.328059,
+   "bryggen": false
+  },
+  "10": {
+   "osm": "way/172805970",
+   "name": null,
+   "lat": 60.394137,
+   "lon": 5.328311,
+   "bryggen": false
+  },
+  "11": {
+   "osm": "way/172805972",
+   "name": null,
+   "lat": 60.394193,
+   "lon": 5.32845,
+   "bryggen": false
+  },
+  "14": {
+   "osm": "way/173623782",
+   "name": null,
+   "lat": 60.394052,
+   "lon": 5.327585,
+   "bryggen": false
+  },
+  "17": {
+   "osm": "way/174132287",
+   "name": null,
+   "lat": 60.394264,
+   "lon": 5.328603,
+   "bryggen": false
+  },
+  "23": {
+   "osm": "way/189368880",
+   "name": null,
+   "lat": 60.393798,
+   "lon": 5.327832,
+   "bryggen": false
+  },
+  "27": {
+   "osm": "way/194972905",
+   "name": null,
+   "lat": 60.393673,
+   "lon": 5.325714,
+   "bryggen": false
+  },
+  "53": {
+   "osm": "way/207090655",
+   "name": null,
+   "lat": 60.395488,
+   "lon": 5.325692,
+   "bryggen": false
+  },
+  "54": {
+   "osm": "way/225959814",
+   "name": "Rosenkrantz p-hus",
+   "lat": 60.396895,
+   "lon": 5.325116,
+   "bryggen": false
+  },
+  "130": {
+   "osm": "way/292242381",
+   "name": "Bryggen Tracteursted",
+   "lat": 60.39769,
+   "lon": 5.324508,
+   "bryggen": true
+  },
+  "131": {
+   "osm": "way/292242383",
+   "name": null,
+   "lat": 60.397575,
+   "lon": 5.324911,
+   "bryggen": true
+  },
+  "132": {
+   "osm": "way/292242384",
+   "name": null,
+   "lat": 60.397767,
+   "lon": 5.324383,
+   "bryggen": true
+  },
+  "133": {
+   "osm": "way/292242388",
+   "name": null,
+   "lat": 60.397677,
+   "lon": 5.324674,
+   "bryggen": true
+  },
+  "134": {
+   "osm": "way/292320260",
+   "name": null,
+   "lat": 60.397505,
+   "lon": 5.322703,
+   "bryggen": true
+  },
+  "135": {
+   "osm": "way/292320261",
+   "name": null,
+   "lat": 60.397462,
+   "lon": 5.322808,
+   "bryggen": true
+  },
+  "136": {
+   "osm": "way/292320263",
+   "name": null,
+   "lat": 60.397337,
+   "lon": 5.324625,
+   "bryggen": true
+  },
+  "137": {
+   "osm": "way/292320264",
+   "name": null,
+   "lat": 60.39727,
+   "lon": 5.324438,
+   "bryggen": true
+  },
+  "138": {
+   "osm": "way/292320265",
+   "name": null,
+   "lat": 60.39721,
+   "lon": 5.323962,
+   "bryggen": true
+  },
+  "139": {
+   "osm": "way/292320266",
+   "name": null,
+   "lat": 60.397051,
+   "lon": 5.323916,
+   "bryggen": true
+  },
+  "140": {
+   "osm": "way/292320267",
+   "name": null,
+   "lat": 60.397401,
+   "lon": 5.324513,
+   "bryggen": true
+  },
+  "141": {
+   "osm": "way/292320268",
+   "name": null,
+   "lat": 60.396928,
+   "lon": 5.324111,
+   "bryggen": true
+  },
+  "142": {
+   "osm": "way/292320269",
+   "name": null,
+   "lat": 60.397404,
+   "lon": 5.324804,
+   "bryggen": true
+  },
+  "143": {
+   "osm": "way/292320271",
+   "name": null,
+   "lat": 60.397302,
+   "lon": 5.324119,
+   "bryggen": true
+  },
+  "144": {
+   "osm": "way/292320272",
+   "name": null,
+   "lat": 60.397187,
+   "lon": 5.324215,
+   "bryggen": true
+  },
+  "145": {
+   "osm": "way/292320273",
+   "name": null,
+   "lat": 60.397384,
+   "lon": 5.324245,
+   "bryggen": true
+  },
+  "146": {
+   "osm": "way/292320274",
+   "name": null,
+   "lat": 60.397491,
+   "lon": 5.324467,
+   "bryggen": true
+  },
+  "147": {
+   "osm": "way/292320275",
+   "name": null,
+   "lat": 60.397104,
+   "lon": 5.323778,
+   "bryggen": true
+  },
+  "148": {
+   "osm": "way/292320276",
+   "name": null,
+   "lat": 60.397498,
+   "lon": 5.324282,
+   "bryggen": true
+  },
+  "149": {
+   "osm": "way/292320278",
+   "name": null,
+   "lat": 60.397221,
+   "lon": 5.324573,
+   "bryggen": true
+  },
+  "151": {
+   "osm": "way/307454507",
+   "name": null,
+   "lat": 60.397255,
+   "lon": 5.326047,
+   "bryggen": false
+  },
+  "152": {
+   "osm": "way/307459539",
+   "name": null,
+   "lat": 60.397371,
+   "lon": 5.326836,
+   "bryggen": false
+  },
+  "153": {
+   "osm": "way/307459540",
+   "name": null,
+   "lat": 60.397224,
+   "lon": 5.327113,
+   "bryggen": false
+  },
+  "154": {
+   "osm": "way/331274521",
+   "name": "Finnegaarden",
+   "lat": 60.396164,
+   "lon": 5.326297,
+   "bryggen": false
+  },
+  "155": {
+   "osm": "way/331274524",
+   "name": null,
+   "lat": 60.398065,
+   "lon": 5.322775,
+   "bryggen": true
+  },
+  "156": {
+   "osm": "way/331274525",
+   "name": null,
+   "lat": 60.396382,
+   "lon": 5.325898,
+   "bryggen": false
+  },
+  "157": {
+   "osm": "way/331274526",
+   "name": null,
+   "lat": 60.397291,
+   "lon": 5.323891,
+   "bryggen": true
+  },
+  "158": {
+   "osm": "way/331274527",
+   "name": null,
+   "lat": 60.396711,
+   "lon": 5.324716,
+   "bryggen": false
+  },
+  "159": {
+   "osm": "way/331274528",
+   "name": null,
+   "lat": 60.397844,
+   "lon": 5.322796,
+   "bryggen": true
+  },
+  "160": {
+   "osm": "way/331274529",
+   "name": null,
+   "lat": 60.397131,
+   "lon": 5.325662,
+   "bryggen": false
+  },
+  "161": {
+   "osm": "way/331274530",
+   "name": null,
+   "lat": 60.398038,
+   "lon": 5.32294,
+   "bryggen": true
+  },
+  "162": {
+   "osm": "way/331274532",
+   "name": null,
+   "lat": 60.397919,
+   "lon": 5.323282,
+   "bryggen": true
+  },
+  "163": {
+   "osm": "way/331274533",
+   "name": "Bryggens museum",
+   "lat": 60.398382,
+   "lon": 5.322805,
+   "bryggen": false
+  },
+  "164": {
+   "osm": "way/331274535",
+   "name": null,
+   "lat": 60.397932,
+   "lon": 5.323937,
+   "bryggen": true
+  },
+  "165": {
+   "osm": "way/331274536",
+   "name": null,
+   "lat": 60.397407,
+   "lon": 5.323528,
+   "bryggen": true
+  },
+  "166": {
+   "osm": "way/331274538",
+   "name": "Kjøttbasaren",
+   "lat": 60.395887,
+   "lon": 5.326689,
+   "bryggen": false
+  },
+  "167": {
+   "osm": "way/331274539",
+   "name": null,
+   "lat": 60.397498,
+   "lon": 5.323676,
+   "bryggen": true
+  },
+  "168": {
+   "osm": "way/331274540",
+   "name": null,
+   "lat": 60.39766,
+   "lon": 5.324841,
+   "bryggen": true
+  },
+  "169": {
+   "osm": "way/331274541",
+   "name": null,
+   "lat": 60.397246,
+   "lon": 5.323313,
+   "bryggen": true
+  },
+  "170": {
+   "osm": "way/331274542",
+   "name": null,
+   "lat": 60.397747,
+   "lon": 5.324084,
+   "bryggen": true
+  },
+  "171": {
+   "osm": "way/331274543",
+   "name": null,
+   "lat": 60.397258,
+   "lon": 5.324796,
+   "bryggen": true
+  },
+  "172": {
+   "osm": "way/331274545",
+   "name": null,
+   "lat": 60.398067,
+   "lon": 5.323995,
+   "bryggen": true
+  },
+  "173": {
+   "osm": "way/331274546",
+   "name": null,
+   "lat": 60.397625,
+   "lon": 5.323614,
+   "bryggen": true
+  },
+  "174": {
+   "osm": "way/331274547",
+   "name": null,
+   "lat": 60.397842,
+   "lon": 5.324002,
+   "bryggen": true
+  },
+  "175": {
+   "osm": "way/331274548",
+   "name": null,
+   "lat": 60.397007,
+   "lon": 5.324285,
+   "bryggen": true
+  },
+  "176": {
+   "osm": "way/331274551",
+   "name": null,
+   "lat": 60.39734,
+   "lon": 5.32511,
+   "bryggen": true
+  },
+  "177": {
+   "osm": "way/331274552",
+   "name": null,
+   "lat": 60.397724,
+   "lon": 5.323459,
+   "bryggen": true
+  },
+  "178": {
+   "osm": "way/331274553",
+   "name": "Murtasken",
+   "lat": 60.395908,
+   "lon": 5.325976,
+   "bryggen": false
+  },
+  "179": {
+   "osm": "way/331274555",
+   "name": null,
+   "lat": 60.397828,
+   "lon": 5.322562,
+   "bryggen": true
+  },
+  "180": {
+   "osm": "way/331274556",
+   "name": null,
+   "lat": 60.397604,
+   "lon": 5.323838,
+   "bryggen": true
+  },
+  "181": {
+   "osm": "way/331274558",
+   "name": null,
+   "lat": 60.398318,
+   "lon": 5.323885,
+   "bryggen": true
+  },
+  "182": {
+   "osm": "way/331274559",
+   "name": null,
+   "lat": 60.397745,
+   "lon": 5.323823,
+   "bryggen": true
+  },
+  "183": {
+   "osm": "way/331274560",
+   "name": null,
+   "lat": 60.397598,
+   "lon": 5.322489,
+   "bryggen": true
+  },
+  "184": {
+   "osm": "way/331274561",
+   "name": null,
+   "lat": 60.398488,
+   "lon": 5.323504,
+   "bryggen": true
+  },
+  "185": {
+   "osm": "way/331274562",
+   "name": null,
+   "lat": 60.397409,
+   "lon": 5.323044,
+   "bryggen": true
+  },
+  "186": {
+   "osm": "way/331274563",
+   "name": null,
+   "lat": 60.397785,
+   "lon": 5.322664,
+   "bryggen": true
+  },
+  "187": {
+   "osm": "way/331274566",
+   "name": null,
+   "lat": 60.397879,
+   "lon": 5.324364,
+   "bryggen": true
+  },
+  "188": {
+   "osm": "way/331274567",
+   "name": null,
+   "lat": 60.397556,
+   "lon": 5.322594,
+   "bryggen": true
+  },
+  "189": {
+   "osm": "way/331274569",
+   "name": null,
+   "lat": 60.397502,
+   "lon": 5.323397,
+   "bryggen": true
+  },
+  "190": {
+   "osm": "way/331274570",
+   "name": null,
+   "lat": 60.397302,
+   "lon": 5.323752,
+   "bryggen": true
+  },
+  "191": {
+   "osm": "way/331274572",
+   "name": null,
+   "lat": 60.397252,
+   "lon": 5.323671,
+   "bryggen": true
+  },
+  "192": {
+   "osm": "way/331274573",
+   "name": null,
+   "lat": 60.397332,
+   "lon": 5.323623,
+   "bryggen": true
+  },
+  "193": {
+   "osm": "way/331274574",
+   "name": null,
+   "lat": 60.397319,
+   "lon": 5.323103,
+   "bryggen": true
+  },
+  "194": {
+   "osm": "way/331274575",
+   "name": null,
+   "lat": 60.397303,
+   "lon": 5.32331,
+   "bryggen": true
+  },
+  "195": {
+   "osm": "way/331274577",
+   "name": null,
+   "lat": 60.397352,
+   "lon": 5.323832,
+   "bryggen": true
+  },
+  "196": {
+   "osm": "way/331274578",
+   "name": null,
+   "lat": 60.397646,
+   "lon": 5.322387,
+   "bryggen": true
+  },
+  "197": {
+   "osm": "way/331274579",
+   "name": null,
+   "lat": 60.398172,
+   "lon": 5.323502,
+   "bryggen": true
+  },
+  "198": {
+   "osm": "way/331274580",
+   "name": null,
+   "lat": 60.397537,
+   "lon": 5.32416,
+   "bryggen": true
+  },
+  "199": {
+   "osm": "way/331274581",
+   "name": null,
+   "lat": 60.3974,
+   "lon": 5.323893,
+   "bryggen": true
+  },
+  "200": {
+   "osm": "way/331274582",
+   "name": null,
+   "lat": 60.397235,
+   "lon": 5.323469,
+   "bryggen": true
+  },
+  "201": {
+   "osm": "way/331274583",
+   "name": null,
+   "lat": 60.397391,
+   "lon": 5.323225,
+   "bryggen": true
+  },
+  "202": {
+   "osm": "way/331274586",
+   "name": null,
+   "lat": 60.397737,
+   "lon": 5.322779,
+   "bryggen": true
+  },
+  "203": {
+   "osm": "way/331274587",
+   "name": null,
+   "lat": 60.397041,
+   "lon": 5.324124,
+   "bryggen": true
+  },
+  "204": {
+   "osm": "way/331274588",
+   "name": null,
+   "lat": 60.395955,
+   "lon": 5.325887,
+   "bryggen": false
+  },
+  "205": {
+   "osm": "way/331274589",
+   "name": null,
+   "lat": 60.398399,
+   "lon": 5.323676,
+   "bryggen": true
+  },
+  "206": {
+   "osm": "way/331274590",
+   "name": null,
+   "lat": 60.39826,
+   "lon": 5.323295,
+   "bryggen": true
+  },
+  "207": {
+   "osm": "way/331274591",
+   "name": null,
+   "lat": 60.397628,
+   "lon": 5.322961,
+   "bryggen": true
+  },
+  "208": {
+   "osm": "way/331274593",
+   "name": null,
+   "lat": 60.396867,
+   "lon": 5.325966,
+   "bryggen": false
+  },
+  "209": {
+   "osm": "way/331274594",
+   "name": null,
+   "lat": 60.397404,
+   "lon": 5.323744,
+   "bryggen": true
+  },
+  "210": {
+   "osm": "way/331274596",
+   "name": null,
+   "lat": 60.397618,
+   "lon": 5.324119,
+   "bryggen": true
+  },
+  "211": {
+   "osm": "way/331274597",
+   "name": null,
+   "lat": 60.396639,
+   "lon": 5.32544,
+   "bryggen": false
+  },
+  "212": {
+   "osm": "way/331274598",
+   "name": null,
+   "lat": 60.398199,
+   "lon": 5.323382,
+   "bryggen": true
+  },
+  "213": {
+   "osm": "way/331274599",
+   "name": null,
+   "lat": 60.39751,
+   "lon": 5.32392,
+   "bryggen": true
+  },
+  "214": {
+   "osm": "way/331274600",
+   "name": null,
+   "lat": 60.397365,
+   "lon": 5.325838,
+   "bryggen": true
+  },
+  "215": {
+   "osm": "way/331274603",
+   "name": null,
+   "lat": 60.397955,
+   "lon": 5.323155,
+   "bryggen": true
+  },
+  "216": {
+   "osm": "way/331274604",
+   "name": null,
+   "lat": 60.397783,
+   "lon": 5.323385,
+   "bryggen": true
+  },
+  "217": {
+   "osm": "way/331274605",
+   "name": null,
+   "lat": 60.397432,
+   "lon": 5.324064,
+   "bryggen": true
+  },
+  "218": {
+   "osm": "way/331274606",
+   "name": null,
+   "lat": 60.396433,
+   "lon": 5.325028,
+   "bryggen": false
+  },
+  "219": {
+   "osm": "way/331274608",
+   "name": null,
+   "lat": 60.397161,
+   "lon": 5.326267,
+   "bryggen": false
+  },
+  "220": {
+   "osm": "way/333825035",
+   "name": null,
+   "lat": 60.394298,
+   "lon": 5.327456,
+   "bryggen": false
+  },
+  "221": {
+   "osm": "way/333825038",
+   "name": null,
+   "lat": 60.393581,
+   "lon": 5.326612,
+   "bryggen": false
+  },
+  "222": {
+   "osm": "way/333825039",
+   "name": null,
+   "lat": 60.394156,
+   "lon": 5.327621,
+   "bryggen": false
+  },
+  "223": {
+   "osm": "way/333825040",
+   "name": null,
+   "lat": 60.39387,
+   "lon": 5.327151,
+   "bryggen": false
+  },
+  "224": {
+   "osm": "way/333825041",
+   "name": null,
+   "lat": 60.393961,
+   "lon": 5.327925,
+   "bryggen": false
+  },
+  "225": {
+   "osm": "way/333825044",
+   "name": null,
+   "lat": 60.393622,
+   "lon": 5.327902,
+   "bryggen": false
+  },
+  "226": {
+   "osm": "way/333825050",
+   "name": null,
+   "lat": 60.393756,
+   "lon": 5.327754,
+   "bryggen": false
+  },
+  "227": {
+   "osm": "way/333825051",
+   "name": null,
+   "lat": 60.394106,
+   "lon": 5.327387,
+   "bryggen": false
+  },
+  "228": {
+   "osm": "way/333825052",
+   "name": null,
+   "lat": 60.393432,
+   "lon": 5.326363,
+   "bryggen": false
+  },
+  "229": {
+   "osm": "way/333825053",
+   "name": null,
+   "lat": 60.394035,
+   "lon": 5.328041,
+   "bryggen": false
+  },
+  "230": {
+   "osm": "way/333825054",
+   "name": null,
+   "lat": 60.393609,
+   "lon": 5.328068,
+   "bryggen": false
+  },
+  "231": {
+   "osm": "way/333825057",
+   "name": null,
+   "lat": 60.394259,
+   "lon": 5.327063,
+   "bryggen": false
+  },
+  "232": {
+   "osm": "way/333825061",
+   "name": "Den Nyapostoliske Kirke Bergen",
+   "lat": 60.394447,
+   "lon": 5.328776,
+   "bryggen": false
+  },
+  "233": {
+   "osm": "way/333825062",
+   "name": null,
+   "lat": 60.393919,
+   "lon": 5.328183,
+   "bryggen": false
+  },
+  "234": {
+   "osm": "way/333825067",
+   "name": null,
+   "lat": 60.39449,
+   "lon": 5.328987,
+   "bryggen": false
+  },
+  "235": {
+   "osm": "way/333825073",
+   "name": null,
+   "lat": 60.393863,
+   "lon": 5.32812,
+   "bryggen": false
+  },
+  "237": {
+   "osm": "way/333825075",
+   "name": null,
+   "lat": 60.394107,
+   "lon": 5.32666,
+   "bryggen": false
+  },
+  "271": {
+   "osm": "way/376535325",
+   "name": null,
+   "lat": 60.397223,
+   "lon": 5.329378,
+   "bryggen": false
+  },
+  "272": {
+   "osm": "way/376535326",
+   "name": null,
+   "lat": 60.398221,
+   "lon": 5.325525,
+   "bryggen": false
+  },
+  "273": {
+   "osm": "way/376535327",
+   "name": null,
+   "lat": 60.397076,
+   "lon": 5.328571,
+   "bryggen": false
+  },
+  "274": {
+   "osm": "way/376535328",
+   "name": null,
+   "lat": 60.397077,
+   "lon": 5.32894,
+   "bryggen": false
+  },
+  "275": {
+   "osm": "way/376535330",
+   "name": null,
+   "lat": 60.397475,
+   "lon": 5.328217,
+   "bryggen": false
+  },
+  "276": {
+   "osm": "way/376535331",
+   "name": null,
+   "lat": 60.396915,
+   "lon": 5.327762,
+   "bryggen": false
+  },
+  "277": {
+   "osm": "way/376535332",
+   "name": null,
+   "lat": 60.397575,
+   "lon": 5.32749,
+   "bryggen": false
+  },
+  "278": {
+   "osm": "way/376535333",
+   "name": null,
+   "lat": 60.397255,
+   "lon": 5.326874,
+   "bryggen": false
+  },
+  "279": {
+   "osm": "way/376535334",
+   "name": null,
+   "lat": 60.397531,
+   "lon": 5.328118,
+   "bryggen": false
+  },
+  "280": {
+   "osm": "way/376535335",
+   "name": null,
+   "lat": 60.397301,
+   "lon": 5.326655,
+   "bryggen": false
+  },
+  "281": {
+   "osm": "way/376535336",
+   "name": null,
+   "lat": 60.397572,
+   "lon": 5.328032,
+   "bryggen": false
+  },
+  "282": {
+   "osm": "way/376535337",
+   "name": null,
+   "lat": 60.397399,
+   "lon": 5.326564,
+   "bryggen": false
+  },
+  "283": {
+   "osm": "way/376535338",
+   "name": null,
+   "lat": 60.397642,
+   "lon": 5.327974,
+   "bryggen": false
+  },
+  "284": {
+   "osm": "way/376535339",
+   "name": null,
+   "lat": 60.397486,
+   "lon": 5.326433,
+   "bryggen": false
+  },
+  "285": {
+   "osm": "way/376535340",
+   "name": null,
+   "lat": 60.397609,
+   "lon": 5.326495,
+   "bryggen": false
+  },
+  "286": {
+   "osm": "way/376535341",
+   "name": null,
+   "lat": 60.397716,
+   "lon": 5.327756,
+   "bryggen": false
+  },
+  "287": {
+   "osm": "way/376535342",
+   "name": null,
+   "lat": 60.397483,
+   "lon": 5.327734,
+   "bryggen": false
+  },
+  "288": {
+   "osm": "way/376535343",
+   "name": null,
+   "lat": 60.397611,
+   "lon": 5.327665,
+   "bryggen": false
+  },
+  "289": {
+   "osm": "way/376535344",
+   "name": null,
+   "lat": 60.39756,
+   "lon": 5.326183,
+   "bryggen": false
+  },
+  "290": {
+   "osm": "way/376535345",
+   "name": null,
+   "lat": 60.397667,
+   "lon": 5.326387,
+   "bryggen": false
+  },
+  "291": {
+   "osm": "way/376535346",
+   "name": null,
+   "lat": 60.397086,
+   "lon": 5.329861,
+   "bryggen": false
+  },
+  "292": {
+   "osm": "way/376535347",
+   "name": null,
+   "lat": 60.397131,
+   "lon": 5.329082,
+   "bryggen": false
+  },
+  "293": {
+   "osm": "way/376535348",
+   "name": null,
+   "lat": 60.396988,
+   "lon": 5.328329,
+   "bryggen": false
+  },
+  "294": {
+   "osm": "way/376535349",
+   "name": null,
+   "lat": 60.397159,
+   "lon": 5.328542,
+   "bryggen": false
+  },
+  "295": {
+   "osm": "way/376535350",
+   "name": null,
+   "lat": 60.397663,
+   "lon": 5.32579,
+   "bryggen": true
+  },
+  "296": {
+   "osm": "way/376535351",
+   "name": null,
+   "lat": 60.398008,
+   "lon": 5.326107,
+   "bryggen": false
+  },
+  "297": {
+   "osm": "way/376535352",
+   "name": null,
+   "lat": 60.397775,
+   "lon": 5.325552,
+   "bryggen": true
+  },
+  "298": {
+   "osm": "way/376535354",
+   "name": null,
+   "lat": 60.398074,
+   "lon": 5.325227,
+   "bryggen": true
+  },
+  "299": {
+   "osm": "way/376535357",
+   "name": null,
+   "lat": 60.39763,
+   "lon": 5.327308,
+   "bryggen": false
+  },
+  "300": {
+   "osm": "way/376535359",
+   "name": null,
+   "lat": 60.397758,
+   "lon": 5.326003,
+   "bryggen": false
+  },
+  "301": {
+   "osm": "way/376535361",
+   "name": null,
+   "lat": 60.397964,
+   "lon": 5.326013,
+   "bryggen": false
+  },
+  "302": {
+   "osm": "way/376535362",
+   "name": null,
+   "lat": 60.39769,
+   "lon": 5.327145,
+   "bryggen": false
+  },
+  "303": {
+   "osm": "way/376535363",
+   "name": null,
+   "lat": 60.397862,
+   "lon": 5.326173,
+   "bryggen": false
+  },
+  "304": {
+   "osm": "way/376535364",
+   "name": null,
+   "lat": 60.397914,
+   "lon": 5.325898,
+   "bryggen": false
+  },
+  "305": {
+   "osm": "way/376535365",
+   "name": null,
+   "lat": 60.398248,
+   "lon": 5.325604,
+   "bryggen": false
+  },
+  "306": {
+   "osm": "way/376535366",
+   "name": null,
+   "lat": 60.397147,
+   "lon": 5.328392,
+   "bryggen": false
+  },
+  "307": {
+   "osm": "way/376535367",
+   "name": null,
+   "lat": 60.397179,
+   "lon": 5.328801,
+   "bryggen": false
+  },
+  "308": {
+   "osm": "way/376535369",
+   "name": null,
+   "lat": 60.397749,
+   "lon": 5.326478,
+   "bryggen": false
+  },
+  "309": {
+   "osm": "way/376535370",
+   "name": null,
+   "lat": 60.397226,
+   "lon": 5.329193,
+   "bryggen": false
+  },
+  "310": {
+   "osm": "way/376535371",
+   "name": null,
+   "lat": 60.397517,
+   "lon": 5.328503,
+   "bryggen": false
+  },
+  "311": {
+   "osm": "way/376535372",
+   "name": null,
+   "lat": 60.397761,
+   "lon": 5.327063,
+   "bryggen": false
+  },
+  "312": {
+   "osm": "way/376535373",
+   "name": null,
+   "lat": 60.397074,
+   "lon": 5.32818,
+   "bryggen": false
+  },
+  "313": {
+   "osm": "way/376535374",
+   "name": null,
+   "lat": 60.397211,
+   "lon": 5.328485,
+   "bryggen": false
+  },
+  "314": {
+   "osm": "way/376535375",
+   "name": null,
+   "lat": 60.397429,
+   "lon": 5.326957,
+   "bryggen": false
+  },
+  "315": {
+   "osm": "way/376535376",
+   "name": null,
+   "lat": 60.398096,
+   "lon": 5.326021,
+   "bryggen": false
+  },
+  "316": {
+   "osm": "way/376535378",
+   "name": null,
+   "lat": 60.39827,
+   "lon": 5.325707,
+   "bryggen": false
+  },
+  "317": {
+   "osm": "way/376535379",
+   "name": null,
+   "lat": 60.397285,
+   "lon": 5.328197,
+   "bryggen": false
+  },
+  "318": {
+   "osm": "way/376535380",
+   "name": null,
+   "lat": 60.397241,
+   "lon": 5.328727,
+   "bryggen": false
+  },
+  "319": {
+   "osm": "way/376535381",
+   "name": null,
+   "lat": 60.397799,
+   "lon": 5.326616,
+   "bryggen": false
+  },
+  "320": {
+   "osm": "way/376535382",
+   "name": null,
+   "lat": 60.397211,
+   "lon": 5.327566,
+   "bryggen": false
+  },
+  "321": {
+   "osm": "way/376535383",
+   "name": null,
+   "lat": 60.397642,
+   "lon": 5.326733,
+   "bryggen": false
+  },
+  "322": {
+   "osm": "way/376535384",
+   "name": null,
+   "lat": 60.397712,
+   "lon": 5.326876,
+   "bryggen": false
+  },
+  "323": {
+   "osm": "way/376535385",
+   "name": null,
+   "lat": 60.397833,
+   "lon": 5.326989,
+   "bryggen": false
+  },
+  "324": {
+   "osm": "way/376535386",
+   "name": null,
+   "lat": 60.397294,
+   "lon": 5.328371,
+   "bryggen": false
+  },
+  "325": {
+   "osm": "way/376535387",
+   "name": null,
+   "lat": 60.397488,
+   "lon": 5.327065,
+   "bryggen": false
+  },
+  "326": {
+   "osm": "way/376535388",
+   "name": null,
+   "lat": 60.3981,
+   "lon": 5.325833,
+   "bryggen": false
+  },
+  "327": {
+   "osm": "way/376535389",
+   "name": null,
+   "lat": 60.397389,
+   "lon": 5.327915,
+   "bryggen": false
+  },
+  "328": {
+   "osm": "way/376535390",
+   "name": null,
+   "lat": 60.397332,
+   "lon": 5.32864,
+   "bryggen": false
+  },
+  "329": {
+   "osm": "way/376535391",
+   "name": null,
+   "lat": 60.397871,
+   "lon": 5.326686,
+   "bryggen": false
+  },
+  "330": {
+   "osm": "way/376535392",
+   "name": null,
+   "lat": 60.397102,
+   "lon": 5.327194,
+   "bryggen": false
+  },
+  "331": {
+   "osm": "way/376535393",
+   "name": null,
+   "lat": 60.397826,
+   "lon": 5.326776,
+   "bryggen": false
+  },
+  "332": {
+   "osm": "way/376535394",
+   "name": null,
+   "lat": 60.397416,
+   "lon": 5.328322,
+   "bryggen": false
+  },
+  "333": {
+   "osm": "way/376535395",
+   "name": null,
+   "lat": 60.397554,
+   "lon": 5.327185,
+   "bryggen": false
+  },
+  "334": {
+   "osm": "way/376535397",
+   "name": null,
+   "lat": 60.397866,
+   "lon": 5.328686,
+   "bryggen": false
+  },
+  "335": {
+   "osm": "way/376535398",
+   "name": null,
+   "lat": 60.397353,
+   "lon": 5.329241,
+   "bryggen": false
+  },
+  "336": {
+   "osm": "way/376535399",
+   "name": null,
+   "lat": 60.39816,
+   "lon": 5.326961,
+   "bryggen": false
+  },
+  "337": {
+   "osm": "way/376535400",
+   "name": null,
+   "lat": 60.397939,
+   "lon": 5.327139,
+   "bryggen": false
+  },
+  "338": {
+   "osm": "way/376535401",
+   "name": null,
+   "lat": 60.398001,
+   "lon": 5.32682,
+   "bryggen": false
+  },
+  "339": {
+   "osm": "way/376535402",
+   "name": null,
+   "lat": 60.397723,
+   "lon": 5.328407,
+   "bryggen": false
+  },
+  "340": {
+   "osm": "way/376535403",
+   "name": null,
+   "lat": 60.397556,
+   "lon": 5.329026,
+   "bryggen": false
+  },
+  "341": {
+   "osm": "way/376535404",
+   "name": null,
+   "lat": 60.397708,
+   "lon": 5.326559,
+   "bryggen": false
+  },
+  "342": {
+   "osm": "way/376535406",
+   "name": null,
+   "lat": 60.397596,
+   "lon": 5.328712,
+   "bryggen": false
+  },
+  "343": {
+   "osm": "way/376535407",
+   "name": null,
+   "lat": 60.398228,
+   "lon": 5.325792,
+   "bryggen": false
+  },
+  "344": {
+   "osm": "way/376535408",
+   "name": null,
+   "lat": 60.397798,
+   "lon": 5.327526,
+   "bryggen": false
+  },
+  "345": {
+   "osm": "way/376535410",
+   "name": null,
+   "lat": 60.397174,
+   "lon": 5.327435,
+   "bryggen": false
+  },
+  "346": {
+   "osm": "way/376535411",
+   "name": null,
+   "lat": 60.397857,
+   "lon": 5.327772,
+   "bryggen": false
+  },
+  "347": {
+   "osm": "way/376535412",
+   "name": null,
+   "lat": 60.397487,
+   "lon": 5.329028,
+   "bryggen": false
+  },
+  "348": {
+   "osm": "way/376535413",
+   "name": null,
+   "lat": 60.397758,
+   "lon": 5.32575,
+   "bryggen": true
+  },
+  "349": {
+   "osm": "way/376535414",
+   "name": null,
+   "lat": 60.398186,
+   "lon": 5.325878,
+   "bryggen": false
+  },
+  "350": {
+   "osm": "way/376535419",
+   "name": null,
+   "lat": 60.397134,
+   "lon": 5.327418,
+   "bryggen": false
+  },
+  "351": {
+   "osm": "way/376535420",
+   "name": null,
+   "lat": 60.397928,
+   "lon": 5.328584,
+   "bryggen": false
+  },
+  "352": {
+   "osm": "way/376535421",
+   "name": null,
+   "lat": 60.397963,
+   "lon": 5.325387,
+   "bryggen": true
+  },
+  "353": {
+   "osm": "way/376535422",
+   "name": null,
+   "lat": 60.397523,
+   "lon": 5.328849,
+   "bryggen": false
+  },
+  "354": {
+   "osm": "way/376535423",
+   "name": null,
+   "lat": 60.397534,
+   "lon": 5.327604,
+   "bryggen": false
+  },
+  "355": {
+   "osm": "way/376535424",
+   "name": null,
+   "lat": 60.39787,
+   "lon": 5.327244,
+   "bryggen": false
+  },
+  "356": {
+   "osm": "way/376535425",
+   "name": null,
+   "lat": 60.398117,
+   "lon": 5.326818,
+   "bryggen": false
+  },
+  "357": {
+   "osm": "way/376535426",
+   "name": null,
+   "lat": 60.398042,
+   "lon": 5.325862,
+   "bryggen": false
+  },
+  "358": {
+   "osm": "way/376535427",
+   "name": null,
+   "lat": 60.397343,
+   "lon": 5.32902,
+   "bryggen": false
+  },
+  "359": {
+   "osm": "way/376535430",
+   "name": null,
+   "lat": 60.398214,
+   "lon": 5.32678,
+   "bryggen": false
+  },
+  "360": {
+   "osm": "way/376535431",
+   "name": null,
+   "lat": 60.397296,
+   "lon": 5.329306,
+   "bryggen": false
+  },
+  "361": {
+   "osm": "way/376535434",
+   "name": null,
+   "lat": 60.397922,
+   "lon": 5.327372,
+   "bryggen": false
+  },
+  "362": {
+   "osm": "way/376535436",
+   "name": null,
+   "lat": 60.397783,
+   "lon": 5.328309,
+   "bryggen": false
+  },
+  "363": {
+   "osm": "way/376535437",
+   "name": null,
+   "lat": 60.397591,
+   "lon": 5.327876,
+   "bryggen": false
+  },
+  "364": {
+   "osm": "way/376535438",
+   "name": null,
+   "lat": 60.397987,
+   "lon": 5.328569,
+   "bryggen": false
+  },
+  "365": {
+   "osm": "way/376535439",
+   "name": null,
+   "lat": 60.397438,
+   "lon": 5.328936,
+   "bryggen": false
+  },
+  "366": {
+   "osm": "way/376535440",
+   "name": null,
+   "lat": 60.397652,
+   "lon": 5.32888,
+   "bryggen": false
+  },
+  "367": {
+   "osm": "way/376535441",
+   "name": null,
+   "lat": 60.398002,
+   "lon": 5.327243,
+   "bryggen": false
+  },
+  "368": {
+   "osm": "way/376535443",
+   "name": null,
+   "lat": 60.398093,
+   "lon": 5.327637,
+   "bryggen": false
+  },
+  "369": {
+   "osm": "way/376535444",
+   "name": null,
+   "lat": 60.397711,
+   "lon": 5.328738,
+   "bryggen": false
+  },
+  "370": {
+   "osm": "way/376535445",
+   "name": null,
+   "lat": 60.397269,
+   "lon": 5.329075,
+   "bryggen": false
+  },
+  "371": {
+   "osm": "way/376535449",
+   "name": null,
+   "lat": 60.397903,
+   "lon": 5.325579,
+   "bryggen": true
+  },
+  "372": {
+   "osm": "way/376535450",
+   "name": null,
+   "lat": 60.397492,
+   "lon": 5.327461,
+   "bryggen": false
+  },
+  "373": {
+   "osm": "way/376535451",
+   "name": null,
+   "lat": 60.398093,
+   "lon": 5.327116,
+   "bryggen": false
+  },
+  "374": {
+   "osm": "way/376535452",
+   "name": null,
+   "lat": 60.39803,
+   "lon": 5.327752,
+   "bryggen": false
+  },
+  "375": {
+   "osm": "way/376535453",
+   "name": null,
+   "lat": 60.396921,
+   "lon": 5.328132,
+   "bryggen": false
+  },
+  "376": {
+   "osm": "way/376535455",
+   "name": null,
+   "lat": 60.398043,
+   "lon": 5.327036,
+   "bryggen": false
+  },
+  "377": {
+   "osm": "way/376535456",
+   "name": null,
+   "lat": 60.397826,
+   "lon": 5.328472,
+   "bryggen": false
+  },
+  "378": {
+   "osm": "way/376535457",
+   "name": null,
+   "lat": 60.397873,
+   "lon": 5.325718,
+   "bryggen": true
+  },
+  "379": {
+   "osm": "way/376535458",
+   "name": null,
+   "lat": 60.397791,
+   "lon": 5.328716,
+   "bryggen": false
+  },
+  "380": {
+   "osm": "way/376535459",
+   "name": null,
+   "lat": 60.397983,
+   "lon": 5.327009,
+   "bryggen": false
+  },
+  "381": {
+   "osm": "way/376535460",
+   "name": null,
+   "lat": 60.397788,
+   "lon": 5.327353,
+   "bryggen": false
+  },
+  "382": {
+   "osm": "way/376651037",
+   "name": "Clarion Collection Hotel Havnekontoret",
+   "lat": 60.398075,
+   "lon": 5.321399,
+   "bryggen": false
+  },
+  "385": {
+   "osm": "way/376651054",
+   "name": null,
+   "lat": 60.39896,
+   "lon": 5.3221,
+   "bryggen": false
+  },
+  "386": {
+   "osm": "way/376651055",
+   "name": null,
+   "lat": 60.399257,
+   "lon": 5.322338,
+   "bryggen": false
+  },
+  "387": {
+   "osm": "way/376651093",
+   "name": null,
+   "lat": 60.398817,
+   "lon": 5.321389,
+   "bryggen": false
+  },
+  "388": {
+   "osm": "way/376651096",
+   "name": null,
+   "lat": 60.399038,
+   "lon": 5.321605,
+   "bryggen": false
+  },
+  "391": {
+   "osm": "way/376651103",
+   "name": null,
+   "lat": 60.398598,
+   "lon": 5.321903,
+   "bryggen": false
+  },
+  "392": {
+   "osm": "way/376651104",
+   "name": null,
+   "lat": 60.399589,
+   "lon": 5.322766,
+   "bryggen": false
+  },
+  "393": {
+   "osm": "way/376651111",
+   "name": "Skur 8 - Dreggekaien",
+   "lat": 60.397834,
+   "lon": 5.320834,
+   "bryggen": false
+  },
+  "395": {
+   "osm": "way/376651130",
+   "name": null,
+   "lat": 60.398972,
+   "lon": 5.3217,
+   "bryggen": false
+  },
+  "401": {
+   "osm": "way/390340574",
+   "name": null,
+   "lat": 60.394756,
+   "lon": 5.328715,
+   "bryggen": false
+  },
+  "402": {
+   "osm": "way/390340575",
+   "name": null,
+   "lat": 60.39439,
+   "lon": 5.328122,
+   "bryggen": false
+  },
+  "403": {
+   "osm": "way/390340577",
+   "name": null,
+   "lat": 60.394544,
+   "lon": 5.328469,
+   "bryggen": false
+  },
+  "404": {
+   "osm": "way/390340578",
+   "name": null,
+   "lat": 60.394605,
+   "lon": 5.328632,
+   "bryggen": false
+  },
+  "405": {
+   "osm": "way/390340584",
+   "name": null,
+   "lat": 60.394568,
+   "lon": 5.328088,
+   "bryggen": false
+  },
+  "406": {
+   "osm": "way/390340586",
+   "name": null,
+   "lat": 60.394407,
+   "lon": 5.327886,
+   "bryggen": false
+  },
+  "407": {
+   "osm": "way/390340587",
+   "name": null,
+   "lat": 60.394639,
+   "lon": 5.328208,
+   "bryggen": false
+  },
+  "408": {
+   "osm": "way/390340588",
+   "name": null,
+   "lat": 60.394708,
+   "lon": 5.328301,
+   "bryggen": false
+  },
+  "409": {
+   "osm": "way/390340589",
+   "name": null,
+   "lat": 60.394742,
+   "lon": 5.328396,
+   "bryggen": false
+  },
+  "410": {
+   "osm": "way/390340590",
+   "name": null,
+   "lat": 60.394658,
+   "lon": 5.328467,
+   "bryggen": false
+  },
+  "412": {
+   "osm": "way/390340594",
+   "name": null,
+   "lat": 60.394837,
+   "lon": 5.328599,
+   "bryggen": false
+  },
+  "413": {
+   "osm": "way/390340595",
+   "name": null,
+   "lat": 60.394784,
+   "lon": 5.328482,
+   "bryggen": false
+  },
+  "414": {
+   "osm": "way/390340599",
+   "name": null,
+   "lat": 60.394509,
+   "lon": 5.327848,
+   "bryggen": false
+  },
+  "415": {
+   "osm": "way/390340602",
+   "name": null,
+   "lat": 60.394667,
+   "lon": 5.328813,
+   "bryggen": false
+  },
+  "416": {
+   "osm": "way/393025479",
+   "name": "Skur 11",
+   "lat": 60.396279,
+   "lon": 5.324433,
+   "bryggen": false
+  },
+  "418": {
+   "osm": "way/393111931",
+   "name": "Proms gate",
+   "lat": 60.396108,
+   "lon": 5.331756,
+   "bryggen": false
+  },
+  "425": {
+   "osm": "way/393480756",
+   "name": null,
+   "lat": 60.394305,
+   "lon": 5.323571,
+   "bryggen": false
+  },
+  "427": {
+   "osm": "way/394114568",
+   "name": null,
+   "lat": 60.396685,
+   "lon": 5.32818,
+   "bryggen": false
+  },
+  "442": {
+   "osm": "way/394850247",
+   "name": null,
+   "lat": 60.395474,
+   "lon": 5.320727,
+   "bryggen": false
+  },
+  "466": {
+   "osm": "way/396054153",
+   "name": null,
+   "lat": 60.396689,
+   "lon": 5.326761,
+   "bryggen": false
+  },
+  "468": {
+   "osm": "way/402047207",
+   "name": null,
+   "lat": 60.396252,
+   "lon": 5.32749,
+   "bryggen": false
+  },
+  "470": {
+   "osm": "way/415128253",
+   "name": null,
+   "lat": 60.396525,
+   "lon": 5.329409,
+   "bryggen": false
+  },
+  "472": {
+   "osm": "way/415128255",
+   "name": null,
+   "lat": 60.396676,
+   "lon": 5.329505,
+   "bryggen": false
+  },
+  "475": {
+   "osm": "way/416421844",
+   "name": null,
+   "lat": 60.397438,
+   "lon": 5.324357,
+   "bryggen": true
+  },
+  "480": {
+   "osm": "way/418043468",
+   "name": null,
+   "lat": 60.39505,
+   "lon": 5.32226,
+   "bryggen": false
+  },
+  "481": {
+   "osm": "way/418057353",
+   "name": null,
+   "lat": 60.396164,
+   "lon": 5.325631,
+   "bryggen": false
+  },
+  "482": {
+   "osm": "way/418057357",
+   "name": null,
+   "lat": 60.396538,
+   "lon": 5.324875,
+   "bryggen": true
+  },
+  "483": {
+   "osm": "way/418057362",
+   "name": null,
+   "lat": 60.396245,
+   "lon": 5.325352,
+   "bryggen": false
+  },
+  "484": {
+   "osm": "way/418057369",
+   "name": null,
+   "lat": 60.396738,
+   "lon": 5.32443,
+   "bryggen": true
+  },
+  "485": {
+   "osm": "way/418057380",
+   "name": null,
+   "lat": 60.396051,
+   "lon": 5.32577,
+   "bryggen": false
+  },
+  "486": {
+   "osm": "way/418057386",
+   "name": null,
+   "lat": 60.395128,
+   "lon": 5.3263,
+   "bryggen": false
+  },
+  "487": {
+   "osm": "way/418057387",
+   "name": null,
+   "lat": 60.394548,
+   "lon": 5.325942,
+   "bryggen": false
+  },
+  "488": {
+   "osm": "way/418057388",
+   "name": null,
+   "lat": 60.395257,
+   "lon": 5.326373,
+   "bryggen": false
+  },
+  "489": {
+   "osm": "way/418057389",
+   "name": null,
+   "lat": 60.394949,
+   "lon": 5.326176,
+   "bryggen": false
+  },
+  "490": {
+   "osm": "way/418057390",
+   "name": null,
+   "lat": 60.395354,
+   "lon": 5.326426,
+   "bryggen": false
+  },
+  "491": {
+   "osm": "way/418057391",
+   "name": null,
+   "lat": 60.394848,
+   "lon": 5.326216,
+   "bryggen": false
+  },
+  "492": {
+   "osm": "way/418057392",
+   "name": null,
+   "lat": 60.394714,
+   "lon": 5.326033,
+   "bryggen": false
+  },
+  "493": {
+   "osm": "way/418057393",
+   "name": null,
+   "lat": 60.395019,
+   "lon": 5.326236,
+   "bryggen": false
+  },
+  "494": {
+   "osm": "way/418057394",
+   "name": null,
+   "lat": 60.394514,
+   "lon": 5.32603,
+   "bryggen": false
+  },
+  "495": {
+   "osm": "way/418057395",
+   "name": null,
+   "lat": 60.394589,
+   "lon": 5.325841,
+   "bryggen": false
+  },
+  "496": {
+   "osm": "way/418057396",
+   "name": "Kiedinghjørnet",
+   "lat": 60.395439,
+   "lon": 5.326435,
+   "bryggen": false
+  },
+  "515": {
+   "osm": "way/422390873",
+   "name": null,
+   "lat": 60.394713,
+   "lon": 5.329447,
+   "bryggen": false
+  },
+  "516": {
+   "osm": "way/422390874",
+   "name": null,
+   "lat": 60.395117,
+   "lon": 5.329676,
+   "bryggen": false
+  },
+  "517": {
+   "osm": "way/422391446",
+   "name": null,
+   "lat": 60.395069,
+   "lon": 5.329447,
+   "bryggen": false
+  },
+  "518": {
+   "osm": "way/422391447",
+   "name": null,
+   "lat": 60.394962,
+   "lon": 5.329272,
+   "bryggen": false
+  },
+  "519": {
+   "osm": "way/422391448",
+   "name": null,
+   "lat": 60.394936,
+   "lon": 5.328922,
+   "bryggen": false
+  },
+  "520": {
+   "osm": "way/422394230",
+   "name": null,
+   "lat": 60.394484,
+   "lon": 5.329392,
+   "bryggen": false
+  },
+  "538": {
+   "osm": "way/422403277",
+   "name": null,
+   "lat": 60.394881,
+   "lon": 5.330301,
+   "bryggen": false
+  },
+  "543": {
+   "osm": "way/422423243",
+   "name": null,
+   "lat": 60.395223,
+   "lon": 5.330854,
+   "bryggen": false
+  },
+  "544": {
+   "osm": "way/422423247",
+   "name": null,
+   "lat": 60.395319,
+   "lon": 5.330743,
+   "bryggen": false
+  },
+  "545": {
+   "osm": "way/422423251",
+   "name": null,
+   "lat": 60.395418,
+   "lon": 5.330618,
+   "bryggen": false
+  },
+  "546": {
+   "osm": "way/422423253",
+   "name": null,
+   "lat": 60.395396,
+   "lon": 5.330448,
+   "bryggen": false
+  },
+  "547": {
+   "osm": "way/422423269",
+   "name": null,
+   "lat": 60.395266,
+   "lon": 5.330613,
+   "bryggen": false
+  },
+  "548": {
+   "osm": "way/422423271",
+   "name": null,
+   "lat": 60.395165,
+   "lon": 5.330701,
+   "bryggen": false
+  },
+  "549": {
+   "osm": "way/422424410",
+   "name": null,
+   "lat": 60.395197,
+   "lon": 5.330493,
+   "bryggen": false
+  },
+  "550": {
+   "osm": "way/422424411",
+   "name": null,
+   "lat": 60.395071,
+   "lon": 5.330017,
+   "bryggen": false
+  },
+  "551": {
+   "osm": "way/422424418",
+   "name": null,
+   "lat": 60.395004,
+   "lon": 5.330174,
+   "bryggen": false
+  },
+  "552": {
+   "osm": "way/422424424",
+   "name": null,
+   "lat": 60.39447,
+   "lon": 5.326125,
+   "bryggen": false
+  },
+  "553": {
+   "osm": "way/422424427",
+   "name": null,
+   "lat": 60.394731,
+   "lon": 5.326221,
+   "bryggen": false
+  },
+  "554": {
+   "osm": "way/422424429",
+   "name": null,
+   "lat": 60.394882,
+   "lon": 5.326521,
+   "bryggen": false
+  },
+  "555": {
+   "osm": "way/422424430",
+   "name": null,
+   "lat": 60.395024,
+   "lon": 5.326533,
+   "bryggen": false
+  },
+  "556": {
+   "osm": "way/422424431",
+   "name": null,
+   "lat": 60.395088,
+   "lon": 5.326603,
+   "bryggen": false
+  },
+  "557": {
+   "osm": "way/422424432",
+   "name": null,
+   "lat": 60.395173,
+   "lon": 5.326615,
+   "bryggen": false
+  },
+  "558": {
+   "osm": "way/422424433",
+   "name": null,
+   "lat": 60.395252,
+   "lon": 5.326638,
+   "bryggen": false
+  },
+  "559": {
+   "osm": "way/422424435",
+   "name": null,
+   "lat": 60.395383,
+   "lon": 5.326664,
+   "bryggen": false
+  },
+  "560": {
+   "osm": "way/422424436",
+   "name": null,
+   "lat": 60.394824,
+   "lon": 5.326616,
+   "bryggen": false
+  },
+  "561": {
+   "osm": "way/422424438",
+   "name": null,
+   "lat": 60.394712,
+   "lon": 5.326393,
+   "bryggen": false
+  },
+  "562": {
+   "osm": "way/422424439",
+   "name": null,
+   "lat": 60.394604,
+   "lon": 5.326415,
+   "bryggen": false
+  },
+  "563": {
+   "osm": "way/422424870",
+   "name": null,
+   "lat": 60.394736,
+   "lon": 5.326676,
+   "bryggen": false
+  },
+  "564": {
+   "osm": "way/422424871",
+   "name": null,
+   "lat": 60.394652,
+   "lon": 5.327061,
+   "bryggen": false
+  },
+  "565": {
+   "osm": "way/422424872",
+   "name": null,
+   "lat": 60.394603,
+   "lon": 5.326971,
+   "bryggen": false
+  },
+  "566": {
+   "osm": "way/422424873",
+   "name": null,
+   "lat": 60.394589,
+   "lon": 5.326721,
+   "bryggen": false
+  },
+  "567": {
+   "osm": "way/422424874",
+   "name": null,
+   "lat": 60.394537,
+   "lon": 5.32683,
+   "bryggen": false
+  },
+  "568": {
+   "osm": "way/422424876",
+   "name": null,
+   "lat": 60.394463,
+   "lon": 5.32648,
+   "bryggen": false
+  },
+  "569": {
+   "osm": "way/422425190",
+   "name": null,
+   "lat": 60.394742,
+   "lon": 5.32723,
+   "bryggen": false
+  },
+  "570": {
+   "osm": "way/422425191",
+   "name": null,
+   "lat": 60.394801,
+   "lon": 5.327117,
+   "bryggen": false
+  },
+  "571": {
+   "osm": "way/422425192",
+   "name": null,
+   "lat": 60.394855,
+   "lon": 5.327027,
+   "bryggen": false
+  },
+  "572": {
+   "osm": "way/422425193",
+   "name": null,
+   "lat": 60.394897,
+   "lon": 5.326929,
+   "bryggen": false
+  },
+  "573": {
+   "osm": "way/422425194",
+   "name": null,
+   "lat": 60.394944,
+   "lon": 5.326815,
+   "bryggen": false
+  },
+  "574": {
+   "osm": "way/422425195",
+   "name": null,
+   "lat": 60.394996,
+   "lon": 5.326882,
+   "bryggen": false
+  },
+  "575": {
+   "osm": "way/422425196",
+   "name": null,
+   "lat": 60.395051,
+   "lon": 5.326919,
+   "bryggen": false
+  },
+  "576": {
+   "osm": "way/422425197",
+   "name": null,
+   "lat": 60.395114,
+   "lon": 5.326937,
+   "bryggen": false
+  },
+  "577": {
+   "osm": "way/422425200",
+   "name": null,
+   "lat": 60.39533,
+   "lon": 5.327201,
+   "bryggen": false
+  },
+  "578": {
+   "osm": "way/422425202",
+   "name": null,
+   "lat": 60.395286,
+   "lon": 5.327369,
+   "bryggen": false
+  },
+  "579": {
+   "osm": "way/422425203",
+   "name": null,
+   "lat": 60.395192,
+   "lon": 5.327463,
+   "bryggen": false
+  },
+  "580": {
+   "osm": "way/422425204",
+   "name": null,
+   "lat": 60.395176,
+   "lon": 5.327667,
+   "bryggen": false
+  },
+  "581": {
+   "osm": "way/422425206",
+   "name": null,
+   "lat": 60.39501,
+   "lon": 5.327101,
+   "bryggen": false
+  },
+  "582": {
+   "osm": "way/422593163",
+   "name": null,
+   "lat": 60.395806,
+   "lon": 5.330231,
+   "bryggen": false
+  },
+  "583": {
+   "osm": "way/422593164",
+   "name": null,
+   "lat": 60.39584,
+   "lon": 5.329993,
+   "bryggen": false
+  },
+  "584": {
+   "osm": "way/422593165",
+   "name": null,
+   "lat": 60.395858,
+   "lon": 5.330128,
+   "bryggen": false
+  },
+  "585": {
+   "osm": "way/422593166",
+   "name": null,
+   "lat": 60.395642,
+   "lon": 5.330236,
+   "bryggen": false
+  },
+  "586": {
+   "osm": "way/422593167",
+   "name": null,
+   "lat": 60.395729,
+   "lon": 5.330088,
+   "bryggen": false
+  },
+  "587": {
+   "osm": "way/422593168",
+   "name": null,
+   "lat": 60.395859,
+   "lon": 5.329862,
+   "bryggen": false
+  },
+  "588": {
+   "osm": "way/422593169",
+   "name": null,
+   "lat": 60.395809,
+   "lon": 5.329823,
+   "bryggen": false
+  },
+  "589": {
+   "osm": "way/422593170",
+   "name": null,
+   "lat": 60.395785,
+   "lon": 5.329469,
+   "bryggen": false
+  },
+  "590": {
+   "osm": "way/422593775",
+   "name": null,
+   "lat": 60.395558,
+   "lon": 5.329852,
+   "bryggen": false
+  },
+  "591": {
+   "osm": "way/422593776",
+   "name": null,
+   "lat": 60.395474,
+   "lon": 5.329692,
+   "bryggen": false
+  },
+  "592": {
+   "osm": "way/422593778",
+   "name": null,
+   "lat": 60.395531,
+   "lon": 5.329614,
+   "bryggen": false
+  },
+  "593": {
+   "osm": "way/422593779",
+   "name": null,
+   "lat": 60.395607,
+   "lon": 5.329522,
+   "bryggen": false
+  },
+  "594": {
+   "osm": "way/422593782",
+   "name": null,
+   "lat": 60.395757,
+   "lon": 5.329289,
+   "bryggen": false
+  },
+  "595": {
+   "osm": "way/422593783",
+   "name": null,
+   "lat": 60.395862,
+   "lon": 5.329235,
+   "bryggen": false
+  },
+  "596": {
+   "osm": "way/422593784",
+   "name": null,
+   "lat": 60.396091,
+   "lon": 5.329278,
+   "bryggen": false
+  },
+  "597": {
+   "osm": "way/422593785",
+   "name": null,
+   "lat": 60.396011,
+   "lon": 5.329191,
+   "bryggen": false
+  },
+  "598": {
+   "osm": "way/422593786",
+   "name": null,
+   "lat": 60.396003,
+   "lon": 5.328938,
+   "bryggen": false
+  },
+  "599": {
+   "osm": "way/422593787",
+   "name": null,
+   "lat": 60.396115,
+   "lon": 5.329121,
+   "bryggen": false
+  },
+  "600": {
+   "osm": "way/422593788",
+   "name": null,
+   "lat": 60.396104,
+   "lon": 5.328819,
+   "bryggen": false
+  },
+  "601": {
+   "osm": "way/422593790",
+   "name": null,
+   "lat": 60.396209,
+   "lon": 5.329117,
+   "bryggen": false
+  },
+  "602": {
+   "osm": "way/422593791",
+   "name": null,
+   "lat": 60.396233,
+   "lon": 5.328609,
+   "bryggen": false
+  },
+  "603": {
+   "osm": "way/422593792",
+   "name": null,
+   "lat": 60.396162,
+   "lon": 5.328687,
+   "bryggen": false
+  },
+  "604": {
+   "osm": "way/422593794",
+   "name": null,
+   "lat": 60.396333,
+   "lon": 5.328884,
+   "bryggen": false
+  },
+  "605": {
+   "osm": "way/422593795",
+   "name": null,
+   "lat": 60.396222,
+   "lon": 5.328852,
+   "bryggen": false
+  },
+  "606": {
+   "osm": "way/422593796",
+   "name": null,
+   "lat": 60.39625,
+   "lon": 5.32898,
+   "bryggen": false
+  },
+  "607": {
+   "osm": "way/422593797",
+   "name": null,
+   "lat": 60.395948,
+   "lon": 5.329498,
+   "bryggen": false
+  },
+  "608": {
+   "osm": "way/422593799",
+   "name": null,
+   "lat": 60.39593,
+   "lon": 5.329578,
+   "bryggen": false
+  },
+  "609": {
+   "osm": "way/422593800",
+   "name": null,
+   "lat": 60.395904,
+   "lon": 5.329626,
+   "bryggen": false
+  },
+  "610": {
+   "osm": "way/422593801",
+   "name": null,
+   "lat": 60.395982,
+   "lon": 5.329761,
+   "bryggen": false
+  },
+  "611": {
+   "osm": "way/422593802",
+   "name": null,
+   "lat": 60.396129,
+   "lon": 5.329406,
+   "bryggen": false
+  },
+  "612": {
+   "osm": "way/422593803",
+   "name": null,
+   "lat": 60.396084,
+   "lon": 5.32964,
+   "bryggen": false
+  },
+  "613": {
+   "osm": "way/422593804",
+   "name": null,
+   "lat": 60.396245,
+   "lon": 5.329264,
+   "bryggen": false
+  },
+  "614": {
+   "osm": "way/422593805",
+   "name": null,
+   "lat": 60.396241,
+   "lon": 5.329375,
+   "bryggen": false
+  },
+  "615": {
+   "osm": "way/422593807",
+   "name": null,
+   "lat": 60.396279,
+   "lon": 5.329462,
+   "bryggen": false
+  },
+  "616": {
+   "osm": "way/422593809",
+   "name": null,
+   "lat": 60.396344,
+   "lon": 5.329342,
+   "bryggen": false
+  },
+  "617": {
+   "osm": "way/422593811",
+   "name": null,
+   "lat": 60.39632,
+   "lon": 5.329178,
+   "bryggen": false
+  },
+  "618": {
+   "osm": "way/422593813",
+   "name": null,
+   "lat": 60.396406,
+   "lon": 5.329084,
+   "bryggen": false
+  },
+  "619": {
+   "osm": "way/422593815",
+   "name": null,
+   "lat": 60.396469,
+   "lon": 5.329204,
+   "bryggen": false
+  },
+  "620": {
+   "osm": "way/422593817",
+   "name": null,
+   "lat": 60.396402,
+   "lon": 5.329575,
+   "bryggen": false
+  },
+  "621": {
+   "osm": "way/422593819",
+   "name": null,
+   "lat": 60.396446,
+   "lon": 5.329569,
+   "bryggen": false
+  },
+  "622": {
+   "osm": "way/422593821",
+   "name": null,
+   "lat": 60.396348,
+   "lon": 5.329595,
+   "bryggen": false
+  },
+  "623": {
+   "osm": "way/422593823",
+   "name": null,
+   "lat": 60.396316,
+   "lon": 5.329731,
+   "bryggen": false
+  },
+  "624": {
+   "osm": "way/422593825",
+   "name": null,
+   "lat": 60.396376,
+   "lon": 5.32971,
+   "bryggen": false
+  },
+  "625": {
+   "osm": "way/422593827",
+   "name": null,
+   "lat": 60.396313,
+   "lon": 5.329951,
+   "bryggen": false
+  },
+  "626": {
+   "osm": "way/422593829",
+   "name": null,
+   "lat": 60.396143,
+   "lon": 5.329796,
+   "bryggen": false
+  },
+  "627": {
+   "osm": "way/422593830",
+   "name": null,
+   "lat": 60.396139,
+   "lon": 5.329996,
+   "bryggen": false
+  },
+  "628": {
+   "osm": "way/422595574",
+   "name": null,
+   "lat": 60.396205,
+   "lon": 5.330051,
+   "bryggen": false
+  },
+  "629": {
+   "osm": "way/422595575",
+   "name": null,
+   "lat": 60.396119,
+   "lon": 5.330139,
+   "bryggen": false
+  },
+  "630": {
+   "osm": "way/422595577",
+   "name": null,
+   "lat": 60.39603,
+   "lon": 5.330082,
+   "bryggen": false
+  },
+  "631": {
+   "osm": "way/422595578",
+   "name": null,
+   "lat": 60.395417,
+   "lon": 5.329411,
+   "bryggen": false
+  },
+  "632": {
+   "osm": "way/422595579",
+   "name": null,
+   "lat": 60.395374,
+   "lon": 5.329258,
+   "bryggen": false
+  },
+  "633": {
+   "osm": "way/422595581",
+   "name": null,
+   "lat": 60.395354,
+   "lon": 5.329097,
+   "bryggen": false
+  },
+  "634": {
+   "osm": "way/422595582",
+   "name": null,
+   "lat": 60.39528,
+   "lon": 5.328898,
+   "bryggen": false
+  },
+  "635": {
+   "osm": "way/422595583",
+   "name": null,
+   "lat": 60.395192,
+   "lon": 5.328607,
+   "bryggen": false
+  },
+  "636": {
+   "osm": "way/422595584",
+   "name": null,
+   "lat": 60.395267,
+   "lon": 5.328493,
+   "bryggen": false
+  },
+  "637": {
+   "osm": "way/422595585",
+   "name": null,
+   "lat": 60.395492,
+   "lon": 5.32927,
+   "bryggen": false
+  },
+  "638": {
+   "osm": "way/422595586",
+   "name": null,
+   "lat": 60.395417,
+   "lon": 5.328952,
+   "bryggen": false
+  },
+  "639": {
+   "osm": "way/422595588",
+   "name": null,
+   "lat": 60.395368,
+   "lon": 5.328792,
+   "bryggen": false
+  },
+  "640": {
+   "osm": "way/422595590",
+   "name": null,
+   "lat": 60.395586,
+   "lon": 5.329153,
+   "bryggen": false
+  },
+  "641": {
+   "osm": "way/422595591",
+   "name": null,
+   "lat": 60.395557,
+   "lon": 5.329007,
+   "bryggen": false
+  },
+  "642": {
+   "osm": "way/422595593",
+   "name": null,
+   "lat": 60.395629,
+   "lon": 5.329101,
+   "bryggen": false
+  },
+  "643": {
+   "osm": "way/422595595",
+   "name": null,
+   "lat": 60.395678,
+   "lon": 5.32901,
+   "bryggen": false
+  },
+  "644": {
+   "osm": "way/422595597",
+   "name": null,
+   "lat": 60.395749,
+   "lon": 5.328951,
+   "bryggen": false
+  },
+  "645": {
+   "osm": "way/422595598",
+   "name": null,
+   "lat": 60.395801,
+   "lon": 5.328893,
+   "bryggen": false
+  },
+  "646": {
+   "osm": "way/422595599",
+   "name": null,
+   "lat": 60.395844,
+   "lon": 5.328768,
+   "bryggen": false
+  },
+  "647": {
+   "osm": "way/422595600",
+   "name": null,
+   "lat": 60.395924,
+   "lon": 5.328682,
+   "bryggen": false
+  },
+  "648": {
+   "osm": "way/422595603",
+   "name": null,
+   "lat": 60.395814,
+   "lon": 5.328328,
+   "bryggen": false
+  },
+  "649": {
+   "osm": "way/422595604",
+   "name": null,
+   "lat": 60.395692,
+   "lon": 5.327943,
+   "bryggen": false
+  },
+  "650": {
+   "osm": "way/422595606",
+   "name": null,
+   "lat": 60.395543,
+   "lon": 5.327504,
+   "bryggen": false
+  },
+  "651": {
+   "osm": "way/422595610",
+   "name": null,
+   "lat": 60.395501,
+   "lon": 5.327664,
+   "bryggen": false
+  },
+  "652": {
+   "osm": "way/422595613",
+   "name": null,
+   "lat": 60.395398,
+   "lon": 5.327877,
+   "bryggen": false
+  },
+  "653": {
+   "osm": "way/422595616",
+   "name": null,
+   "lat": 60.395464,
+   "lon": 5.327769,
+   "bryggen": false
+  },
+  "654": {
+   "osm": "way/422595618",
+   "name": null,
+   "lat": 60.395614,
+   "lon": 5.328192,
+   "bryggen": false
+  },
+  "655": {
+   "osm": "way/422595619",
+   "name": null,
+   "lat": 60.395281,
+   "lon": 5.328194,
+   "bryggen": false
+  },
+  "656": {
+   "osm": "way/422595620",
+   "name": null,
+   "lat": 60.395382,
+   "lon": 5.328399,
+   "bryggen": false
+  },
+  "657": {
+   "osm": "way/422595623",
+   "name": null,
+   "lat": 60.395631,
+   "lon": 5.328756,
+   "bryggen": false
+  },
+  "658": {
+   "osm": "way/422595624",
+   "name": null,
+   "lat": 60.395698,
+   "lon": 5.328811,
+   "bryggen": false
+  },
+  "659": {
+   "osm": "way/422595626",
+   "name": null,
+   "lat": 60.395516,
+   "lon": 5.328713,
+   "bryggen": false
+  },
+  "660": {
+   "osm": "way/422595628",
+   "name": null,
+   "lat": 60.395528,
+   "lon": 5.327247,
+   "bryggen": false
+  },
+  "661": {
+   "osm": "way/422597292",
+   "name": null,
+   "lat": 60.395591,
+   "lon": 5.327064,
+   "bryggen": false
+  },
+  "662": {
+   "osm": "way/422597294",
+   "name": null,
+   "lat": 60.395702,
+   "lon": 5.327356,
+   "bryggen": false
+  },
+  "663": {
+   "osm": "way/422597296",
+   "name": null,
+   "lat": 60.395768,
+   "lon": 5.327554,
+   "bryggen": false
+  },
+  "664": {
+   "osm": "way/422597297",
+   "name": null,
+   "lat": 60.395806,
+   "lon": 5.327702,
+   "bryggen": false
+  },
+  "665": {
+   "osm": "way/422597298",
+   "name": null,
+   "lat": 60.395886,
+   "lon": 5.327812,
+   "bryggen": false
+  },
+  "666": {
+   "osm": "way/422597299",
+   "name": null,
+   "lat": 60.395808,
+   "lon": 5.327909,
+   "bryggen": false
+  },
+  "667": {
+   "osm": "way/422597300",
+   "name": null,
+   "lat": 60.395908,
+   "lon": 5.328006,
+   "bryggen": false
+  },
+  "668": {
+   "osm": "way/422597468",
+   "name": null,
+   "lat": 60.396103,
+   "lon": 5.328369,
+   "bryggen": false
+  },
+  "669": {
+   "osm": "way/422597469",
+   "name": null,
+   "lat": 60.396033,
+   "lon": 5.328205,
+   "bryggen": false
+  },
+  "670": {
+   "osm": "way/422597470",
+   "name": null,
+   "lat": 60.395958,
+   "lon": 5.328142,
+   "bryggen": false
+  },
+  "671": {
+   "osm": "way/422597471",
+   "name": null,
+   "lat": 60.395947,
+   "lon": 5.328341,
+   "bryggen": false
+  },
+  "672": {
+   "osm": "way/422597472",
+   "name": null,
+   "lat": 60.395764,
+   "lon": 5.328443,
+   "bryggen": false
+  },
+  "675": {
+   "osm": "way/422614567",
+   "name": null,
+   "lat": 60.395882,
+   "lon": 5.330493,
+   "bryggen": false
+  },
+  "676": {
+   "osm": "way/422614568",
+   "name": null,
+   "lat": 60.395768,
+   "lon": 5.330608,
+   "bryggen": false
+  },
+  "677": {
+   "osm": "way/422614569",
+   "name": null,
+   "lat": 60.395923,
+   "lon": 5.330609,
+   "bryggen": false
+  },
+  "678": {
+   "osm": "way/422614570",
+   "name": null,
+   "lat": 60.396317,
+   "lon": 5.330272,
+   "bryggen": false
+  },
+  "679": {
+   "osm": "way/422614571",
+   "name": null,
+   "lat": 60.39624,
+   "lon": 5.330381,
+   "bryggen": false
+  },
+  "680": {
+   "osm": "way/422614572",
+   "name": null,
+   "lat": 60.396212,
+   "lon": 5.330607,
+   "bryggen": false
+  },
+  "681": {
+   "osm": "way/422614573",
+   "name": null,
+   "lat": 60.396374,
+   "lon": 5.330508,
+   "bryggen": false
+  },
+  "682": {
+   "osm": "way/422614575",
+   "name": null,
+   "lat": 60.395609,
+   "lon": 5.330795,
+   "bryggen": false
+  },
+  "683": {
+   "osm": "way/422614576",
+   "name": null,
+   "lat": 60.395535,
+   "lon": 5.330856,
+   "bryggen": false
+  },
+  "684": {
+   "osm": "way/422614577",
+   "name": null,
+   "lat": 60.395476,
+   "lon": 5.330909,
+   "bryggen": false
+  },
+  "685": {
+   "osm": "way/422614578",
+   "name": null,
+   "lat": 60.39541,
+   "lon": 5.330939,
+   "bryggen": false
+  },
+  "686": {
+   "osm": "way/422614579",
+   "name": null,
+   "lat": 60.395337,
+   "lon": 5.330986,
+   "bryggen": false
+  },
+  "694": {
+   "osm": "way/422614618",
+   "name": null,
+   "lat": 60.395571,
+   "lon": 5.331491,
+   "bryggen": false
+  },
+  "695": {
+   "osm": "way/422614619",
+   "name": null,
+   "lat": 60.395674,
+   "lon": 5.331369,
+   "bryggen": false
+  },
+  "696": {
+   "osm": "way/422614620",
+   "name": null,
+   "lat": 60.395776,
+   "lon": 5.331536,
+   "bryggen": false
+  },
+  "697": {
+   "osm": "way/422614621",
+   "name": null,
+   "lat": 60.395911,
+   "lon": 5.33101,
+   "bryggen": false
+  },
+  "698": {
+   "osm": "way/422614622",
+   "name": null,
+   "lat": 60.395965,
+   "lon": 5.33093,
+   "bryggen": false
+  },
+  "699": {
+   "osm": "way/422614623",
+   "name": null,
+   "lat": 60.396013,
+   "lon": 5.330841,
+   "bryggen": false
+  },
+  "700": {
+   "osm": "way/422614624",
+   "name": null,
+   "lat": 60.39608,
+   "lon": 5.330787,
+   "bryggen": false
+  },
+  "701": {
+   "osm": "way/422614625",
+   "name": null,
+   "lat": 60.396152,
+   "lon": 5.330968,
+   "bryggen": false
+  },
+  "702": {
+   "osm": "way/422614626",
+   "name": null,
+   "lat": 60.395953,
+   "lon": 5.331294,
+   "bryggen": false
+  },
+  "703": {
+   "osm": "way/422614627",
+   "name": null,
+   "lat": 60.396115,
+   "lon": 5.331257,
+   "bryggen": false
+  },
+  "704": {
+   "osm": "way/422614628",
+   "name": null,
+   "lat": 60.396108,
+   "lon": 5.331444,
+   "bryggen": false
+  },
+  "706": {
+   "osm": "way/422614631",
+   "name": null,
+   "lat": 60.396623,
+   "lon": 5.329587,
+   "bryggen": false
+  },
+  "707": {
+   "osm": "way/422614632",
+   "name": null,
+   "lat": 60.396502,
+   "lon": 5.329753,
+   "bryggen": false
+  },
+  "708": {
+   "osm": "way/422614633",
+   "name": null,
+   "lat": 60.396585,
+   "lon": 5.329721,
+   "bryggen": false
+  },
+  "709": {
+   "osm": "way/422614634",
+   "name": null,
+   "lat": 60.396516,
+   "lon": 5.32991,
+   "bryggen": false
+  },
+  "710": {
+   "osm": "way/422614635",
+   "name": null,
+   "lat": 60.396387,
+   "lon": 5.330199,
+   "bryggen": false
+  },
+  "711": {
+   "osm": "way/422614637",
+   "name": null,
+   "lat": 60.396752,
+   "lon": 5.329681,
+   "bryggen": false
+  },
+  "712": {
+   "osm": "way/422614639",
+   "name": null,
+   "lat": 60.396836,
+   "lon": 5.330158,
+   "bryggen": false
+  },
+  "713": {
+   "osm": "way/422614640",
+   "name": null,
+   "lat": 60.396762,
+   "lon": 5.33026,
+   "bryggen": false
+  },
+  "714": {
+   "osm": "way/422614641",
+   "name": null,
+   "lat": 60.396656,
+   "lon": 5.330444,
+   "bryggen": false
+  },
+  "715": {
+   "osm": "way/422614643",
+   "name": null,
+   "lat": 60.396778,
+   "lon": 5.330567,
+   "bryggen": false
+  },
+  "716": {
+   "osm": "way/422614644",
+   "name": null,
+   "lat": 60.396711,
+   "lon": 5.33067,
+   "bryggen": false
+  },
+  "717": {
+   "osm": "way/422614645",
+   "name": null,
+   "lat": 60.39663,
+   "lon": 5.330801,
+   "bryggen": false
+  },
+  "718": {
+   "osm": "way/422614646",
+   "name": null,
+   "lat": 60.396683,
+   "lon": 5.330314,
+   "bryggen": false
+  },
+  "719": {
+   "osm": "way/422614647",
+   "name": null,
+   "lat": 60.396536,
+   "lon": 5.330575,
+   "bryggen": false
+  },
+  "720": {
+   "osm": "way/422614648",
+   "name": null,
+   "lat": 60.396467,
+   "lon": 5.330717,
+   "bryggen": false
+  },
+  "721": {
+   "osm": "way/422614649",
+   "name": null,
+   "lat": 60.396433,
+   "lon": 5.330928,
+   "bryggen": false
+  },
+  "722": {
+   "osm": "way/422614650",
+   "name": null,
+   "lat": 60.396363,
+   "lon": 5.331056,
+   "bryggen": false
+  },
+  "726": {
+   "osm": "way/444555615",
+   "name": null,
+   "lat": 60.395676,
+   "lon": 5.329356,
+   "bryggen": false
+  },
+  "727": {
+   "osm": "way/446708441",
+   "name": "Mariakirken",
+   "lat": 60.398895,
+   "lon": 5.323429,
+   "bryggen": false
+  },
+  "728": {
+   "osm": "way/459617422",
+   "name": null,
+   "lat": 60.395241,
+   "lon": 5.327059,
+   "bryggen": false
+  },
+  "729": {
+   "osm": "way/459617423",
+   "name": null,
+   "lat": 60.39457,
+   "lon": 5.326892,
+   "bryggen": false
+  },
+  "731": {
+   "osm": "way/468812506",
+   "name": null,
+   "lat": 60.395412,
+   "lon": 5.328122,
+   "bryggen": false
+  },
+  "740": {
+   "osm": "way/474577530",
+   "name": null,
+   "lat": 60.398888,
+   "lon": 5.327226,
+   "bryggen": false
+  },
+  "742": {
+   "osm": "way/482675384",
+   "name": null,
+   "lat": 60.394368,
+   "lon": 5.326385,
+   "bryggen": false
+  },
+  "743": {
+   "osm": "way/482675402",
+   "name": null,
+   "lat": 60.393398,
+   "lon": 5.326663,
+   "bryggen": false
+  },
+  "757": {
+   "osm": "way/488690084",
+   "name": null,
+   "lat": 60.39773,
+   "lon": 5.322251,
+   "bryggen": true
+  },
+  "758": {
+   "osm": "way/488690087",
+   "name": null,
+   "lat": 60.397138,
+   "lon": 5.323646,
+   "bryggen": true
+  },
+  "759": {
+   "osm": "way/488690088",
+   "name": null,
+   "lat": 60.397176,
+   "lon": 5.323552,
+   "bryggen": true
+  },
+  "795": {
+   "osm": "way/492568906",
+   "name": null,
+   "lat": 60.396404,
+   "lon": 5.327005,
+   "bryggen": false
+  },
+  "796": {
+   "osm": "way/492568907",
+   "name": null,
+   "lat": 60.396539,
+   "lon": 5.327261,
+   "bryggen": false
+  },
+  "797": {
+   "osm": "way/492568908",
+   "name": null,
+   "lat": 60.396627,
+   "lon": 5.327432,
+   "bryggen": false
+  },
+  "798": {
+   "osm": "way/492569448",
+   "name": null,
+   "lat": 60.396169,
+   "lon": 5.327272,
+   "bryggen": false
+  },
+  "799": {
+   "osm": "way/492569449",
+   "name": null,
+   "lat": 60.396374,
+   "lon": 5.327747,
+   "bryggen": false
+  },
+  "850": {
+   "osm": "way/507851708",
+   "name": "Harbitzhjørnet",
+   "lat": 60.394052,
+   "lon": 5.324606,
+   "bryggen": false
+  },
+  "859": {
+   "osm": "way/528216822",
+   "name": "Korskirken",
+   "lat": 60.394887,
+   "lon": 5.327796,
+   "bryggen": false
+  },
+  "915": {
+   "osm": "way/577603875",
+   "name": null,
+   "lat": 60.39932,
+   "lon": 5.326217,
+   "bryggen": false
+  },
+  "916": {
+   "osm": "way/577603876",
+   "name": null,
+   "lat": 60.399438,
+   "lon": 5.326032,
+   "bryggen": false
+  },
+  "917": {
+   "osm": "way/577603877",
+   "name": null,
+   "lat": 60.399377,
+   "lon": 5.326109,
+   "bryggen": false
+  },
+  "936": {
+   "osm": "way/577603903",
+   "name": null,
+   "lat": 60.399273,
+   "lon": 5.32635,
+   "bryggen": false
+  },
+  "949": {
+   "osm": "way/577605394",
+   "name": null,
+   "lat": 60.399413,
+   "lon": 5.324812,
+   "bryggen": false
+  },
+  "950": {
+   "osm": "way/577605395",
+   "name": null,
+   "lat": 60.399446,
+   "lon": 5.32472,
+   "bryggen": false
+  },
+  "951": {
+   "osm": "way/577605396",
+   "name": null,
+   "lat": 60.399327,
+   "lon": 5.325297,
+   "bryggen": false
+  },
+  "952": {
+   "osm": "way/577605397",
+   "name": null,
+   "lat": 60.399448,
+   "lon": 5.325272,
+   "bryggen": false
+  },
+  "953": {
+   "osm": "way/577605398",
+   "name": null,
+   "lat": 60.399366,
+   "lon": 5.325386,
+   "bryggen": false
+  },
+  "954": {
+   "osm": "way/577605399",
+   "name": null,
+   "lat": 60.399397,
+   "lon": 5.325498,
+   "bryggen": false
+  },
+  "955": {
+   "osm": "way/577605400",
+   "name": null,
+   "lat": 60.399431,
+   "lon": 5.325624,
+   "bryggen": false
+  },
+  "956": {
+   "osm": "way/577605401",
+   "name": null,
+   "lat": 60.399507,
+   "lon": 5.32552,
+   "bryggen": false
+  },
+  "957": {
+   "osm": "way/577605402",
+   "name": null,
+   "lat": 60.399576,
+   "lon": 5.325482,
+   "bryggen": false
+  },
+  "958": {
+   "osm": "way/577605403",
+   "name": null,
+   "lat": 60.399725,
+   "lon": 5.325318,
+   "bryggen": false
+  },
+  "963": {
+   "osm": "way/577605409",
+   "name": null,
+   "lat": 60.399896,
+   "lon": 5.324636,
+   "bryggen": false
+  },
+  "964": {
+   "osm": "way/577605410",
+   "name": null,
+   "lat": 60.3998,
+   "lon": 5.324587,
+   "bryggen": false
+  },
+  "965": {
+   "osm": "way/577605411",
+   "name": null,
+   "lat": 60.399665,
+   "lon": 5.325382,
+   "bryggen": false
+  },
+  "985": {
+   "osm": "way/577607260",
+   "name": null,
+   "lat": 60.399964,
+   "lon": 5.324761,
+   "bryggen": false
+  },
+  "986": {
+   "osm": "way/577607262",
+   "name": null,
+   "lat": 60.400025,
+   "lon": 5.324633,
+   "bryggen": false
+  },
+  "997": {
+   "osm": "way/577609157",
+   "name": null,
+   "lat": 60.39906,
+   "lon": 5.326242,
+   "bryggen": false
+  },
+  "998": {
+   "osm": "way/577609158",
+   "name": null,
+   "lat": 60.399093,
+   "lon": 5.326356,
+   "bryggen": false
+  },
+  "999": {
+   "osm": "way/577609159",
+   "name": null,
+   "lat": 60.399126,
+   "lon": 5.326446,
+   "bryggen": false
+  },
+  "1000": {
+   "osm": "way/577609160",
+   "name": null,
+   "lat": 60.398999,
+   "lon": 5.326478,
+   "bryggen": false
+  },
+  "1001": {
+   "osm": "way/577609161",
+   "name": null,
+   "lat": 60.398908,
+   "lon": 5.327069,
+   "bryggen": false
+  },
+  "1002": {
+   "osm": "way/577609162",
+   "name": null,
+   "lat": 60.398936,
+   "lon": 5.326749,
+   "bryggen": false
+  },
+  "1003": {
+   "osm": "way/577609163",
+   "name": null,
+   "lat": 60.398953,
+   "lon": 5.326929,
+   "bryggen": false
+  },
+  "1004": {
+   "osm": "way/577609164",
+   "name": null,
+   "lat": 60.399023,
+   "lon": 5.32683,
+   "bryggen": false
+  },
+  "1005": {
+   "osm": "way/577609165",
+   "name": null,
+   "lat": 60.399093,
+   "lon": 5.326687,
+   "bryggen": false
+  },
+  "1006": {
+   "osm": "way/577609335",
+   "name": null,
+   "lat": 60.399057,
+   "lon": 5.324533,
+   "bryggen": false
+  },
+  "1007": {
+   "osm": "way/577609336",
+   "name": null,
+   "lat": 60.399013,
+   "lon": 5.324411,
+   "bryggen": false
+  },
+  "1008": {
+   "osm": "way/577609337",
+   "name": null,
+   "lat": 60.398936,
+   "lon": 5.324207,
+   "bryggen": false
+  },
+  "1009": {
+   "osm": "way/577609338",
+   "name": null,
+   "lat": 60.398865,
+   "lon": 5.326515,
+   "bryggen": false
+  },
+  "1010": {
+   "osm": "way/577609339",
+   "name": null,
+   "lat": 60.398971,
+   "lon": 5.326303,
+   "bryggen": false
+  },
+  "1011": {
+   "osm": "way/577609470",
+   "name": null,
+   "lat": 60.398846,
+   "lon": 5.325659,
+   "bryggen": false
+  },
+  "1012": {
+   "osm": "way/577609471",
+   "name": null,
+   "lat": 60.398904,
+   "lon": 5.325782,
+   "bryggen": false
+  },
+  "1013": {
+   "osm": "way/577610031",
+   "name": null,
+   "lat": 60.39867,
+   "lon": 5.326117,
+   "bryggen": false
+  },
+  "1014": {
+   "osm": "way/577610032",
+   "name": null,
+   "lat": 60.398675,
+   "lon": 5.325855,
+   "bryggen": false
+  },
+  "1015": {
+   "osm": "way/577610033",
+   "name": null,
+   "lat": 60.398736,
+   "lon": 5.325988,
+   "bryggen": false
+  },
+  "1016": {
+   "osm": "way/577610034",
+   "name": null,
+   "lat": 60.398877,
+   "lon": 5.326086,
+   "bryggen": false
+  },
+  "1017": {
+   "osm": "way/577610035",
+   "name": null,
+   "lat": 60.398809,
+   "lon": 5.325905,
+   "bryggen": false
+  },
+  "1018": {
+   "osm": "way/577610036",
+   "name": null,
+   "lat": 60.39876,
+   "lon": 5.325717,
+   "bryggen": false
+  },
+  "1019": {
+   "osm": "way/577610037",
+   "name": null,
+   "lat": 60.398957,
+   "lon": 5.325487,
+   "bryggen": false
+  },
+  "1020": {
+   "osm": "way/577610038",
+   "name": null,
+   "lat": 60.399291,
+   "lon": 5.325636,
+   "bryggen": false
+  },
+  "1021": {
+   "osm": "way/577610039",
+   "name": null,
+   "lat": 60.399204,
+   "lon": 5.325859,
+   "bryggen": false
+  },
+  "1022": {
+   "osm": "way/577610041",
+   "name": null,
+   "lat": 60.399038,
+   "lon": 5.32586,
+   "bryggen": false
+  },
+  "1023": {
+   "osm": "way/577612195",
+   "name": null,
+   "lat": 60.398645,
+   "lon": 5.326965,
+   "bryggen": false
+  },
+  "1024": {
+   "osm": "way/577612196",
+   "name": null,
+   "lat": 60.398654,
+   "lon": 5.326838,
+   "bryggen": false
+  },
+  "1025": {
+   "osm": "way/577612197",
+   "name": null,
+   "lat": 60.398605,
+   "lon": 5.326743,
+   "bryggen": false
+  },
+  "1026": {
+   "osm": "way/577612198",
+   "name": null,
+   "lat": 60.39851,
+   "lon": 5.326819,
+   "bryggen": false
+  },
+  "1027": {
+   "osm": "way/577612199",
+   "name": null,
+   "lat": 60.398424,
+   "lon": 5.326742,
+   "bryggen": false
+  },
+  "1028": {
+   "osm": "way/577612200",
+   "name": null,
+   "lat": 60.398454,
+   "lon": 5.326652,
+   "bryggen": false
+  },
+  "1029": {
+   "osm": "way/577612201",
+   "name": null,
+   "lat": 60.398553,
+   "lon": 5.326581,
+   "bryggen": false
+  },
+  "1030": {
+   "osm": "way/577612202",
+   "name": null,
+   "lat": 60.398652,
+   "lon": 5.326544,
+   "bryggen": false
+  },
+  "1031": {
+   "osm": "way/577612203",
+   "name": null,
+   "lat": 60.398593,
+   "lon": 5.326212,
+   "bryggen": false
+  },
+  "1032": {
+   "osm": "way/577612204",
+   "name": null,
+   "lat": 60.398539,
+   "lon": 5.325988,
+   "bryggen": false
+  },
+  "1033": {
+   "osm": "way/577612205",
+   "name": null,
+   "lat": 60.398698,
+   "lon": 5.326259,
+   "bryggen": false
+  },
+  "1034": {
+   "osm": "way/577612206",
+   "name": null,
+   "lat": 60.398759,
+   "lon": 5.326196,
+   "bryggen": false
+  },
+  "1035": {
+   "osm": "way/577612207",
+   "name": null,
+   "lat": 60.398809,
+   "lon": 5.326134,
+   "bryggen": false
+  },
+  "1036": {
+   "osm": "way/577612208",
+   "name": null,
+   "lat": 60.39867,
+   "lon": 5.324927,
+   "bryggen": false
+  },
+  "1037": {
+   "osm": "way/577613117",
+   "name": null,
+   "lat": 60.398158,
+   "lon": 5.327507,
+   "bryggen": false
+  },
+  "1038": {
+   "osm": "way/577613118",
+   "name": null,
+   "lat": 60.398103,
+   "lon": 5.327355,
+   "bryggen": false
+  },
+  "1039": {
+   "osm": "way/577613119",
+   "name": null,
+   "lat": 60.398156,
+   "lon": 5.327251,
+   "bryggen": false
+  },
+  "1040": {
+   "osm": "way/577613120",
+   "name": null,
+   "lat": 60.398218,
+   "lon": 5.327152,
+   "bryggen": false
+  },
+  "1041": {
+   "osm": "way/577613121",
+   "name": null,
+   "lat": 60.398261,
+   "lon": 5.327223,
+   "bryggen": false
+  },
+  "1042": {
+   "osm": "way/577613122",
+   "name": null,
+   "lat": 60.398295,
+   "lon": 5.327321,
+   "bryggen": false
+  },
+  "1043": {
+   "osm": "way/577613123",
+   "name": null,
+   "lat": 60.39842,
+   "lon": 5.327618,
+   "bryggen": false
+  },
+  "1044": {
+   "osm": "way/577613124",
+   "name": null,
+   "lat": 60.398405,
+   "lon": 5.327508,
+   "bryggen": false
+  },
+  "1045": {
+   "osm": "way/577613125",
+   "name": null,
+   "lat": 60.398379,
+   "lon": 5.327417,
+   "bryggen": false
+  },
+  "1046": {
+   "osm": "way/577613126",
+   "name": null,
+   "lat": 60.398572,
+   "lon": 5.327083,
+   "bryggen": false
+  },
+  "1047": {
+   "osm": "way/577613127",
+   "name": null,
+   "lat": 60.398619,
+   "lon": 5.32721,
+   "bryggen": false
+  },
+  "1048": {
+   "osm": "way/577613128",
+   "name": null,
+   "lat": 60.398695,
+   "lon": 5.327169,
+   "bryggen": false
+  },
+  "1049": {
+   "osm": "way/577613129",
+   "name": null,
+   "lat": 60.398794,
+   "lon": 5.326461,
+   "bryggen": false
+  },
+  "1050": {
+   "osm": "way/577613130",
+   "name": null,
+   "lat": 60.398789,
+   "lon": 5.32665,
+   "bryggen": false
+  },
+  "1051": {
+   "osm": "way/577613131",
+   "name": null,
+   "lat": 60.398739,
+   "lon": 5.326451,
+   "bryggen": false
+  },
+  "1052": {
+   "osm": "way/577614191",
+   "name": null,
+   "lat": 60.398492,
+   "lon": 5.327834,
+   "bryggen": false
+  },
+  "1053": {
+   "osm": "way/577614192",
+   "name": null,
+   "lat": 60.398543,
+   "lon": 5.327779,
+   "bryggen": false
+  },
+  "1054": {
+   "osm": "way/577614193",
+   "name": null,
+   "lat": 60.39862,
+   "lon": 5.327735,
+   "bryggen": false
+  },
+  "1055": {
+   "osm": "way/577614194",
+   "name": null,
+   "lat": 60.39882,
+   "lon": 5.327305,
+   "bryggen": false
+  },
+  "1056": {
+   "osm": "way/577614195",
+   "name": null,
+   "lat": 60.39868,
+   "lon": 5.327446,
+   "bryggen": false
+  },
+  "1062": {
+   "osm": "way/577614651",
+   "name": null,
+   "lat": 60.398452,
+   "lon": 5.327952,
+   "bryggen": false
+  },
+  "1063": {
+   "osm": "way/577614652",
+   "name": null,
+   "lat": 60.398359,
+   "lon": 5.327948,
+   "bryggen": false
+  },
+  "1064": {
+   "osm": "way/577614653",
+   "name": null,
+   "lat": 60.398368,
+   "lon": 5.328499,
+   "bryggen": false
+  },
+  "1069": {
+   "osm": "way/577614658",
+   "name": null,
+   "lat": 60.398429,
+   "lon": 5.328396,
+   "bryggen": false
+  },
+  "1072": {
+   "osm": "way/577615051",
+   "name": null,
+   "lat": 60.398119,
+   "lon": 5.328342,
+   "bryggen": false
+  },
+  "1073": {
+   "osm": "way/577615052",
+   "name": null,
+   "lat": 60.398184,
+   "lon": 5.328378,
+   "bryggen": false
+  },
+  "1074": {
+   "osm": "way/577615053",
+   "name": null,
+   "lat": 60.39811,
+   "lon": 5.328486,
+   "bryggen": false
+  },
+  "1075": {
+   "osm": "way/577615054",
+   "name": null,
+   "lat": 60.397904,
+   "lon": 5.328234,
+   "bryggen": false
+  },
+  "1076": {
+   "osm": "way/577615055",
+   "name": null,
+   "lat": 60.397846,
+   "lon": 5.328179,
+   "bryggen": false
+  },
+  "1080": {
+   "osm": "way/577615419",
+   "name": null,
+   "lat": 60.398247,
+   "lon": 5.327517,
+   "bryggen": false
+  },
+  "1081": {
+   "osm": "way/577615420",
+   "name": null,
+   "lat": 60.398315,
+   "lon": 5.327681,
+   "bryggen": false
+  },
+  "1082": {
+   "osm": "way/577615421",
+   "name": null,
+   "lat": 60.39817,
+   "lon": 5.327746,
+   "bryggen": false
+  },
+  "1083": {
+   "osm": "way/577615422",
+   "name": null,
+   "lat": 60.398229,
+   "lon": 5.327784,
+   "bryggen": false
+  },
+  "1084": {
+   "osm": "way/577615423",
+   "name": null,
+   "lat": 60.398313,
+   "lon": 5.328233,
+   "bryggen": false
+  },
+  "1085": {
+   "osm": "way/577615425",
+   "name": null,
+   "lat": 60.398239,
+   "lon": 5.328192,
+   "bryggen": false
+  },
+  "1086": {
+   "osm": "way/577615426",
+   "name": null,
+   "lat": 60.398111,
+   "lon": 5.328052,
+   "bryggen": false
+  },
+  "1087": {
+   "osm": "way/577615427",
+   "name": null,
+   "lat": 60.398089,
+   "lon": 5.328211,
+   "bryggen": false
+  },
+  "1088": {
+   "osm": "way/577615428",
+   "name": null,
+   "lat": 60.398034,
+   "lon": 5.328303,
+   "bryggen": false
+  },
+  "1089": {
+   "osm": "way/577616198",
+   "name": null,
+   "lat": 60.398296,
+   "lon": 5.325979,
+   "bryggen": false
+  },
+  "1090": {
+   "osm": "way/577616199",
+   "name": null,
+   "lat": 60.398367,
+   "lon": 5.325858,
+   "bryggen": false
+  },
+  "1091": {
+   "osm": "way/577616200",
+   "name": null,
+   "lat": 60.398289,
+   "lon": 5.324807,
+   "bryggen": true
+  },
+  "1092": {
+   "osm": "way/577616201",
+   "name": null,
+   "lat": 60.398361,
+   "lon": 5.324966,
+   "bryggen": true
+  },
+  "1093": {
+   "osm": "way/577616202",
+   "name": null,
+   "lat": 60.398426,
+   "lon": 5.32514,
+   "bryggen": false
+  },
+  "1094": {
+   "osm": "way/577616203",
+   "name": null,
+   "lat": 60.398397,
+   "lon": 5.325073,
+   "bryggen": false
+  },
+  "1095": {
+   "osm": "way/577616204",
+   "name": null,
+   "lat": 60.398463,
+   "lon": 5.325284,
+   "bryggen": false
+  },
+  "1096": {
+   "osm": "way/577616768",
+   "name": null,
+   "lat": 60.398466,
+   "lon": 5.327198,
+   "bryggen": false
+  },
+  "1097": {
+   "osm": "way/577616769",
+   "name": null,
+   "lat": 60.398273,
+   "lon": 5.326968,
+   "bryggen": false
+  },
+  "1098": {
+   "osm": "way/577616770",
+   "name": null,
+   "lat": 60.398314,
+   "lon": 5.327025,
+   "bryggen": false
+  },
+  "1099": {
+   "osm": "way/577616771",
+   "name": null,
+   "lat": 60.398397,
+   "lon": 5.327061,
+   "bryggen": false
+  },
+  "1100": {
+   "osm": "way/577616772",
+   "name": null,
+   "lat": 60.398399,
+   "lon": 5.326918,
+   "bryggen": false
+  },
+  "1101": {
+   "osm": "way/577616773",
+   "name": null,
+   "lat": 60.398333,
+   "lon": 5.32685,
+   "bryggen": false
+  },
+  "1102": {
+   "osm": "way/577616774",
+   "name": null,
+   "lat": 60.39853,
+   "lon": 5.326382,
+   "bryggen": false
+  },
+  "1103": {
+   "osm": "way/577616775",
+   "name": null,
+   "lat": 60.398503,
+   "lon": 5.326189,
+   "bryggen": false
+  },
+  "1104": {
+   "osm": "way/577616777",
+   "name": null,
+   "lat": 60.398416,
+   "lon": 5.32632,
+   "bryggen": false
+  },
+  "1105": {
+   "osm": "way/577616778",
+   "name": null,
+   "lat": 60.398346,
+   "lon": 5.32611,
+   "bryggen": false
+  },
+  "1108": {
+   "osm": "way/577617802",
+   "name": null,
+   "lat": 60.398494,
+   "lon": 5.32759,
+   "bryggen": false
+  },
+  "1109": {
+   "osm": "way/577617803",
+   "name": null,
+   "lat": 60.398574,
+   "lon": 5.327529,
+   "bryggen": false
+  },
+  "1110": {
+   "osm": "way/577617804",
+   "name": null,
+   "lat": 60.398506,
+   "lon": 5.327299,
+   "bryggen": false
+  },
+  "1117": {
+   "osm": "way/577621263",
+   "name": null,
+   "lat": 60.399697,
+   "lon": 5.324672,
+   "bryggen": false
+  },
+  "1118": {
+   "osm": "way/577621264",
+   "name": null,
+   "lat": 60.399713,
+   "lon": 5.324479,
+   "bryggen": false
+  },
+  "1119": {
+   "osm": "way/577621265",
+   "name": null,
+   "lat": 60.39967,
+   "lon": 5.32406,
+   "bryggen": false
+  },
+  "1120": {
+   "osm": "way/577621266",
+   "name": null,
+   "lat": 60.399643,
+   "lon": 5.323926,
+   "bryggen": false
+  },
+  "1121": {
+   "osm": "way/577621267",
+   "name": null,
+   "lat": 60.39955,
+   "lon": 5.324067,
+   "bryggen": false
+  },
+  "1122": {
+   "osm": "way/577623659",
+   "name": null,
+   "lat": 60.399244,
+   "lon": 5.324569,
+   "bryggen": false
+  },
+  "1123": {
+   "osm": "way/577623660",
+   "name": null,
+   "lat": 60.399198,
+   "lon": 5.324646,
+   "bryggen": false
+  },
+  "1124": {
+   "osm": "way/577623662",
+   "name": null,
+   "lat": 60.399155,
+   "lon": 5.324777,
+   "bryggen": false
+  },
+  "1125": {
+   "osm": "way/577623663",
+   "name": null,
+   "lat": 60.399215,
+   "lon": 5.324924,
+   "bryggen": false
+  },
+  "1126": {
+   "osm": "way/577623664",
+   "name": null,
+   "lat": 60.399292,
+   "lon": 5.324682,
+   "bryggen": false
+  },
+  "1127": {
+   "osm": "way/577623665",
+   "name": null,
+   "lat": 60.399255,
+   "lon": 5.324802,
+   "bryggen": false
+  },
+  "1128": {
+   "osm": "way/577623666",
+   "name": null,
+   "lat": 60.399736,
+   "lon": 5.325049,
+   "bryggen": false
+  },
+  "1129": {
+   "osm": "way/577623667",
+   "name": null,
+   "lat": 60.399786,
+   "lon": 5.325234,
+   "bryggen": false
+  },
+  "1130": {
+   "osm": "way/577623668",
+   "name": null,
+   "lat": 60.399845,
+   "lon": 5.325144,
+   "bryggen": false
+  },
+  "1131": {
+   "osm": "way/577623669",
+   "name": null,
+   "lat": 60.399887,
+   "lon": 5.324928,
+   "bryggen": false
+  },
+  "1132": {
+   "osm": "way/577623670",
+   "name": null,
+   "lat": 60.399792,
+   "lon": 5.324807,
+   "bryggen": false
+  },
+  "1234": {
+   "osm": "way/577836829",
+   "name": null,
+   "lat": 60.397943,
+   "lon": 5.328046,
+   "bryggen": false
+  },
+  "1235": {
+   "osm": "way/577837301",
+   "name": null,
+   "lat": 60.399324,
+   "lon": 5.323429,
+   "bryggen": false
+  },
+  "1236": {
+   "osm": "way/577837302",
+   "name": null,
+   "lat": 60.399395,
+   "lon": 5.323392,
+   "bryggen": false
+  },
+  "1237": {
+   "osm": "way/577837303",
+   "name": null,
+   "lat": 60.399393,
+   "lon": 5.32361,
+   "bryggen": false
+  },
+  "1238": {
+   "osm": "way/577837304",
+   "name": null,
+   "lat": 60.399459,
+   "lon": 5.323617,
+   "bryggen": false
+  },
+  "1239": {
+   "osm": "way/577837305",
+   "name": null,
+   "lat": 60.399454,
+   "lon": 5.323328,
+   "bryggen": false
+  },
+  "1240": {
+   "osm": "way/577837306",
+   "name": null,
+   "lat": 60.399537,
+   "lon": 5.32351,
+   "bryggen": false
+  },
+  "1241": {
+   "osm": "way/577837307",
+   "name": null,
+   "lat": 60.399561,
+   "lon": 5.323178,
+   "bryggen": false
+  },
+  "1242": {
+   "osm": "way/577837308",
+   "name": null,
+   "lat": 60.39963,
+   "lon": 5.323104,
+   "bryggen": false
+  },
+  "1243": {
+   "osm": "way/577837309",
+   "name": null,
+   "lat": 60.399768,
+   "lon": 5.323116,
+   "bryggen": false
+  },
+  "1244": {
+   "osm": "way/577837310",
+   "name": null,
+   "lat": 60.399682,
+   "lon": 5.323028,
+   "bryggen": false
+  },
+  "1245": {
+   "osm": "way/577838015",
+   "name": null,
+   "lat": 60.399212,
+   "lon": 5.32423,
+   "bryggen": false
+  },
+  "1246": {
+   "osm": "way/577838017",
+   "name": null,
+   "lat": 60.399318,
+   "lon": 5.324455,
+   "bryggen": false
+  },
+  "1247": {
+   "osm": "way/577838018",
+   "name": null,
+   "lat": 60.399376,
+   "lon": 5.324305,
+   "bryggen": false
+  },
+  "1248": {
+   "osm": "way/577838019",
+   "name": null,
+   "lat": 60.399298,
+   "lon": 5.324153,
+   "bryggen": false
+  },
+  "1249": {
+   "osm": "way/577838755",
+   "name": null,
+   "lat": 60.39867,
+   "lon": 5.32457,
+   "bryggen": false
+  },
+  "1250": {
+   "osm": "way/577838756",
+   "name": null,
+   "lat": 60.39859,
+   "lon": 5.32437,
+   "bryggen": false
+  },
+  "1251": {
+   "osm": "way/577838757",
+   "name": null,
+   "lat": 60.398484,
+   "lon": 5.324442,
+   "bryggen": true
+  },
+  "1252": {
+   "osm": "way/577838758",
+   "name": null,
+   "lat": 60.398493,
+   "lon": 5.324587,
+   "bryggen": false
+  },
+  "1253": {
+   "osm": "way/577838759",
+   "name": null,
+   "lat": 60.398575,
+   "lon": 5.324691,
+   "bryggen": false
+  },
+  "1254": {
+   "osm": "way/577838760",
+   "name": null,
+   "lat": 60.398626,
+   "lon": 5.324808,
+   "bryggen": false
+  },
+  "1255": {
+   "osm": "way/577838762",
+   "name": null,
+   "lat": 60.399499,
+   "lon": 5.32288,
+   "bryggen": false
+  },
+  "1256": {
+   "osm": "way/577838763",
+   "name": null,
+   "lat": 60.399363,
+   "lon": 5.322828,
+   "bryggen": false
+  },
+  "1271": {
+   "osm": "way/577841618",
+   "name": null,
+   "lat": 60.399945,
+   "lon": 5.323038,
+   "bryggen": false
+  },
+  "1272": {
+   "osm": "way/577841619",
+   "name": null,
+   "lat": 60.399875,
+   "lon": 5.32315,
+   "bryggen": false
+  },
+  "1273": {
+   "osm": "way/577841824",
+   "name": null,
+   "lat": 60.399663,
+   "lon": 5.323473,
+   "bryggen": false
+  },
+  "1274": {
+   "osm": "way/577841825",
+   "name": null,
+   "lat": 60.399782,
+   "lon": 5.323332,
+   "bryggen": false
+  },
+  "1318": {
+   "osm": "way/577898318",
+   "name": null,
+   "lat": 60.397732,
+   "lon": 5.329452,
+   "bryggen": false
+  },
+  "1319": {
+   "osm": "way/577898320",
+   "name": null,
+   "lat": 60.397807,
+   "lon": 5.329359,
+   "bryggen": false
+  },
+  "1320": {
+   "osm": "way/577898321",
+   "name": null,
+   "lat": 60.397859,
+   "lon": 5.329247,
+   "bryggen": false
+  },
+  "1321": {
+   "osm": "way/577898322",
+   "name": null,
+   "lat": 60.398199,
+   "lon": 5.328691,
+   "bryggen": false
+  },
+  "1322": {
+   "osm": "way/577898323",
+   "name": null,
+   "lat": 60.398126,
+   "lon": 5.328786,
+   "bryggen": false
+  },
+  "1323": {
+   "osm": "way/577898324",
+   "name": null,
+   "lat": 60.398055,
+   "lon": 5.328886,
+   "bryggen": false
+  },
+  "1324": {
+   "osm": "way/577898325",
+   "name": null,
+   "lat": 60.397973,
+   "lon": 5.329001,
+   "bryggen": false
+  },
+  "1325": {
+   "osm": "way/577898326",
+   "name": null,
+   "lat": 60.397895,
+   "lon": 5.32911,
+   "bryggen": false
+  },
+  "1326": {
+   "osm": "way/577898327",
+   "name": null,
+   "lat": 60.397958,
+   "lon": 5.329262,
+   "bryggen": false
+  },
+  "1327": {
+   "osm": "way/577898328",
+   "name": null,
+   "lat": 60.398035,
+   "lon": 5.329152,
+   "bryggen": false
+  },
+  "1328": {
+   "osm": "way/577898329",
+   "name": null,
+   "lat": 60.398115,
+   "lon": 5.329049,
+   "bryggen": false
+  },
+  "1329": {
+   "osm": "way/577898330",
+   "name": null,
+   "lat": 60.398177,
+   "lon": 5.328955,
+   "bryggen": false
+  },
+  "1353": {
+   "osm": "way/578165491",
+   "name": null,
+   "lat": 60.399046,
+   "lon": 5.325396,
+   "bryggen": false
+  },
+  "1354": {
+   "osm": "way/578166478",
+   "name": null,
+   "lat": 60.399299,
+   "lon": 5.325095,
+   "bryggen": false
+  },
+  "1355": {
+   "osm": "way/578166479",
+   "name": null,
+   "lat": 60.399249,
+   "lon": 5.325226,
+   "bryggen": false
+  },
+  "1356": {
+   "osm": "way/578166480",
+   "name": null,
+   "lat": 60.399212,
+   "lon": 5.325344,
+   "bryggen": false
+  },
+  "1357": {
+   "osm": "way/578166481",
+   "name": null,
+   "lat": 60.399165,
+   "lon": 5.325456,
+   "bryggen": false
+  },
+  "1358": {
+   "osm": "way/578166482",
+   "name": null,
+   "lat": 60.399126,
+   "lon": 5.325573,
+   "bryggen": false
+  },
+  "1359": {
+   "osm": "way/578167650",
+   "name": null,
+   "lat": 60.399567,
+   "lon": 5.324268,
+   "bryggen": false
+  },
+  "1360": {
+   "osm": "way/578167651",
+   "name": null,
+   "lat": 60.399515,
+   "lon": 5.324359,
+   "bryggen": false
+  },
+  "1361": {
+   "osm": "way/578167652",
+   "name": null,
+   "lat": 60.39948,
+   "lon": 5.32447,
+   "bryggen": false
+  },
+  "1362": {
+   "osm": "way/578167653",
+   "name": null,
+   "lat": 60.39945,
+   "lon": 5.324571,
+   "bryggen": false
+  },
+  "1363": {
+   "osm": "way/578167654",
+   "name": null,
+   "lat": 60.399371,
+   "lon": 5.324966,
+   "bryggen": false
+  },
+  "1365": {
+   "osm": "way/578200015",
+   "name": null,
+   "lat": 60.398918,
+   "lon": 5.324469,
+   "bryggen": false
+  },
+  "1366": {
+   "osm": "way/578200016",
+   "name": null,
+   "lat": 60.398826,
+   "lon": 5.324217,
+   "bryggen": false
+  },
+  "1387": {
+   "osm": "way/578260922",
+   "name": null,
+   "lat": 60.399586,
+   "lon": 5.325267,
+   "bryggen": false
+  },
+  "1388": {
+   "osm": "way/578260923",
+   "name": null,
+   "lat": 60.399668,
+   "lon": 5.325126,
+   "bryggen": false
+  },
+  "1389": {
+   "osm": "way/578260924",
+   "name": null,
+   "lat": 60.399609,
+   "lon": 5.32506,
+   "bryggen": false
+  },
+  "1390": {
+   "osm": "way/578260925",
+   "name": null,
+   "lat": 60.399598,
+   "lon": 5.324966,
+   "bryggen": false
+  },
+  "1391": {
+   "osm": "way/578260926",
+   "name": null,
+   "lat": 60.399569,
+   "lon": 5.324863,
+   "bryggen": false
+  },
+  "1392": {
+   "osm": "way/578260927",
+   "name": null,
+   "lat": 60.399556,
+   "lon": 5.324733,
+   "bryggen": false
+  },
+  "1393": {
+   "osm": "way/578260928",
+   "name": null,
+   "lat": 60.399527,
+   "lon": 5.324544,
+   "bryggen": false
+  },
+  "1394": {
+   "osm": "way/578260929",
+   "name": null,
+   "lat": 60.399592,
+   "lon": 5.32462,
+   "bryggen": false
+  },
+  "1395": {
+   "osm": "way/578261867",
+   "name": null,
+   "lat": 60.398314,
+   "lon": 5.324682,
+   "bryggen": true
+  },
+  "1396": {
+   "osm": "way/578261869",
+   "name": null,
+   "lat": 60.398402,
+   "lon": 5.324658,
+   "bryggen": true
+  },
+  "1397": {
+   "osm": "way/578261870",
+   "name": null,
+   "lat": 60.398503,
+   "lon": 5.324958,
+   "bryggen": false
+  },
+  "1398": {
+   "osm": "way/578261871",
+   "name": null,
+   "lat": 60.39871,
+   "lon": 5.325471,
+   "bryggen": false
+  },
+  "1399": {
+   "osm": "way/578261872",
+   "name": null,
+   "lat": 60.398665,
+   "lon": 5.32536,
+   "bryggen": false
+  },
+  "1400": {
+   "osm": "way/578261873",
+   "name": null,
+   "lat": 60.398622,
+   "lon": 5.32526,
+   "bryggen": false
+  },
+  "1401": {
+   "osm": "way/578261874",
+   "name": null,
+   "lat": 60.398565,
+   "lon": 5.325133,
+   "bryggen": false
+  },
+  "1402": {
+   "osm": "way/578261875",
+   "name": null,
+   "lat": 60.398628,
+   "lon": 5.325522,
+   "bryggen": false
+  },
+  "1403": {
+   "osm": "way/578261876",
+   "name": null,
+   "lat": 60.398563,
+   "lon": 5.325544,
+   "bryggen": false
+  },
+  "1404": {
+   "osm": "way/578261877",
+   "name": null,
+   "lat": 60.39853,
+   "lon": 5.32543,
+   "bryggen": false
+  },
+  "1405": {
+   "osm": "way/578261878",
+   "name": null,
+   "lat": 60.398905,
+   "lon": 5.325958,
+   "bryggen": false
+  },
+  "1406": {
+   "osm": "way/578261879",
+   "name": null,
+   "lat": 60.39886,
+   "lon": 5.32538,
+   "bryggen": false
+  },
+  "1407": {
+   "osm": "way/578261880",
+   "name": null,
+   "lat": 60.398819,
+   "lon": 5.32531,
+   "bryggen": false
+  },
+  "1408": {
+   "osm": "way/578261881",
+   "name": null,
+   "lat": 60.398788,
+   "lon": 5.325253,
+   "bryggen": false
+  },
+  "1409": {
+   "osm": "way/578261882",
+   "name": null,
+   "lat": 60.398793,
+   "lon": 5.325064,
+   "bryggen": false
+  },
+  "1410": {
+   "osm": "way/578261883",
+   "name": null,
+   "lat": 60.399492,
+   "lon": 5.32521,
+   "bryggen": false
+  },
+  "1411": {
+   "osm": "way/578262114",
+   "name": null,
+   "lat": 60.398306,
+   "lon": 5.326361,
+   "bryggen": false
+  },
+  "1412": {
+   "osm": "way/578262115",
+   "name": null,
+   "lat": 60.39825,
+   "lon": 5.326135,
+   "bryggen": false
+  },
+  "1413": {
+   "osm": "way/578262116",
+   "name": null,
+   "lat": 60.39824,
+   "lon": 5.326412,
+   "bryggen": false
+  },
+  "1414": {
+   "osm": "way/578262117",
+   "name": null,
+   "lat": 60.398165,
+   "lon": 5.32648,
+   "bryggen": false
+  },
+  "1415": {
+   "osm": "way/578262118",
+   "name": null,
+   "lat": 60.398074,
+   "lon": 5.326532,
+   "bryggen": false
+  },
+  "1416": {
+   "osm": "way/578262120",
+   "name": null,
+   "lat": 60.398,
+   "lon": 5.326417,
+   "bryggen": false
+  },
+  "1417": {
+   "osm": "way/578262121",
+   "name": null,
+   "lat": 60.398083,
+   "lon": 5.326294,
+   "bryggen": false
+  },
+  "1418": {
+   "osm": "way/578262122",
+   "name": null,
+   "lat": 60.398174,
+   "lon": 5.326209,
+   "bryggen": false
+  },
+  "1780": {
+   "osm": "way/654367314",
+   "name": null,
+   "lat": 60.398556,
+   "lon": 5.324544,
+   "bryggen": false
+  },
+  "1795": {
+   "osm": "way/685101787",
+   "name": null,
+   "lat": 60.395681,
+   "lon": 5.330742,
+   "bryggen": false
+  },
+  "1796": {
+   "osm": "way/685101788",
+   "name": null,
+   "lat": 60.397415,
+   "lon": 5.32532,
+   "bryggen": true
+  },
+  "1801": {
+   "osm": "way/685127775",
+   "name": null,
+   "lat": 60.396743,
+   "lon": 5.32869,
+   "bryggen": false
+  },
+  "1802": {
+   "osm": "way/719121349",
+   "name": null,
+   "lat": 60.395262,
+   "lon": 5.329954,
+   "bryggen": false
+  },
+  "1803": {
+   "osm": "way/719637440",
+   "name": null,
+   "lat": 60.397517,
+   "lon": 5.325102,
+   "bryggen": true
+  },
+  "1811": {
+   "osm": "way/984917494",
+   "name": null,
+   "lat": 60.397602,
+   "lon": 5.328957,
+   "bryggen": false
+  },
+  "1813": {
+   "osm": "way/984917520",
+   "name": null,
+   "lat": 60.398464,
+   "lon": 5.324871,
+   "bryggen": false
+  },
+  "1818": {
+   "osm": "way/984917568",
+   "name": null,
+   "lat": 60.396958,
+   "lon": 5.326229,
+   "bryggen": false
+  },
+  "1820": {
+   "osm": "way/984917572",
+   "name": null,
+   "lat": 60.396822,
+   "lon": 5.328339,
+   "bryggen": false
+  },
+  "1823": {
+   "osm": "way/984917585",
+   "name": null,
+   "lat": 60.397167,
+   "lon": 5.32443,
+   "bryggen": true
+  },
+  "1827": {
+   "osm": "way/984917601",
+   "name": null,
+   "lat": 60.398034,
+   "lon": 5.328089,
+   "bryggen": false
+  },
+  "1831": {
+   "osm": "way/984917619",
+   "name": null,
+   "lat": 60.399607,
+   "lon": 5.323363,
+   "bryggen": false
+  },
+  "1833": {
+   "osm": "way/984917641",
+   "name": null,
+   "lat": 60.399829,
+   "lon": 5.324966,
+   "bryggen": false
+  },
+  "1834": {
+   "osm": "way/984917642",
+   "name": null,
+   "lat": 60.399136,
+   "lon": 5.325092,
+   "bryggen": false
+  },
+  "1836": {
+   "osm": "way/984917644",
+   "name": null,
+   "lat": 60.399772,
+   "lon": 5.324981,
+   "bryggen": false
+  },
+  "1839": {
+   "osm": "way/984917664",
+   "name": null,
+   "lat": 60.399511,
+   "lon": 5.325078,
+   "bryggen": false
+  },
+  "1841": {
+   "osm": "way/984917673",
+   "name": null,
+   "lat": 60.39959,
+   "lon": 5.324377,
+   "bryggen": false
+  },
+  "1853": {
+   "osm": "way/984917732",
+   "name": null,
+   "lat": 60.399509,
+   "lon": 5.323241,
+   "bryggen": false
+  },
+  "1854": {
+   "osm": "way/984917739",
+   "name": null,
+   "lat": 60.399529,
+   "lon": 5.325155,
+   "bryggen": false
+  },
+  "1855": {
+   "osm": "way/984917742",
+   "name": null,
+   "lat": 60.39965,
+   "lon": 5.323291,
+   "bryggen": false
+  },
+  "1860": {
+   "osm": "way/984917774",
+   "name": null,
+   "lat": 60.399754,
+   "lon": 5.324098,
+   "bryggen": false
+  },
+  "1863": {
+   "osm": "way/984917791",
+   "name": null,
+   "lat": 60.399097,
+   "lon": 5.325653,
+   "bryggen": false
+  },
+  "1866": {
+   "osm": "way/984917822",
+   "name": null,
+   "lat": 60.398504,
+   "lon": 5.325222,
+   "bryggen": false
+  },
+  "1873": {
+   "osm": "way/984917857",
+   "name": null,
+   "lat": 60.397827,
+   "lon": 5.325705,
+   "bryggen": true
+  },
+  "1874": {
+   "osm": "way/984917863",
+   "name": null,
+   "lat": 60.398995,
+   "lon": 5.325365,
+   "bryggen": false
+  },
+  "1879": {
+   "osm": "way/984917884",
+   "name": null,
+   "lat": 60.397062,
+   "lon": 5.326453,
+   "bryggen": false
+  },
+  "1880": {
+   "osm": "way/984917888",
+   "name": null,
+   "lat": 60.399604,
+   "lon": 5.322307,
+   "bryggen": false
+  },
+  "1881": {
+   "osm": "way/984917891",
+   "name": null,
+   "lat": 60.399672,
+   "lon": 5.323264,
+   "bryggen": false
+  },
+  "1887": {
+   "osm": "way/984917938",
+   "name": null,
+   "lat": 60.395765,
+   "lon": 5.326254,
+   "bryggen": false
+  },
+  "1890": {
+   "osm": "way/984917950",
+   "name": null,
+   "lat": 60.398763,
+   "lon": 5.325812,
+   "bryggen": false
+  },
+  "1894": {
+   "osm": "way/984917983",
+   "name": null,
+   "lat": 60.39745,
+   "lon": 5.328115,
+   "bryggen": false
+  },
+  "1896": {
+   "osm": "way/984917990",
+   "name": null,
+   "lat": 60.397985,
+   "lon": 5.328197,
+   "bryggen": false
+  },
+  "1898": {
+   "osm": "way/984918003",
+   "name": null,
+   "lat": 60.398899,
+   "lon": 5.325172,
+   "bryggen": false
+  },
+  "1904": {
+   "osm": "way/984918064",
+   "name": null,
+   "lat": 60.398401,
+   "lon": 5.324087,
+   "bryggen": true
+  },
+  "1905": {
+   "osm": "way/984918068",
+   "name": null,
+   "lat": 60.398752,
+   "lon": 5.327376,
+   "bryggen": false
+  },
+  "1906": {
+   "osm": "way/984918069",
+   "name": null,
+   "lat": 60.397806,
+   "lon": 5.326892,
+   "bryggen": false
+  },
+  "1910": {
+   "osm": "way/984918105",
+   "name": null,
+   "lat": 60.40017,
+   "lon": 5.323525,
+   "bryggen": false
+  },
+  "1912": {
+   "osm": "way/984918114",
+   "name": null,
+   "lat": 60.398052,
+   "lon": 5.320474,
+   "bryggen": false
+  },
+  "1914": {
+   "osm": "way/984918142",
+   "name": null,
+   "lat": 60.397076,
+   "lon": 5.329111,
+   "bryggen": false
+  },
+  "1919": {
+   "osm": "way/985209091",
+   "name": null,
+   "lat": 60.394437,
+   "lon": 5.326252,
+   "bryggen": false
+  },
+  "1923": {
+   "osm": "way/985209138",
+   "name": null,
+   "lat": 60.394545,
+   "lon": 5.326276,
+   "bryggen": false
+  },
+  "1926": {
+   "osm": "way/985209150",
+   "name": null,
+   "lat": 60.393891,
+   "lon": 5.327912,
+   "bryggen": false
+  },
+  "1927": {
+   "osm": "way/985209196",
+   "name": null,
+   "lat": 60.394613,
+   "lon": 5.328,
+   "bryggen": false
+  },
+  "1928": {
+   "osm": "way/985209200",
+   "name": null,
+   "lat": 60.394946,
+   "lon": 5.32643,
+   "bryggen": false
+  },
+  "1930": {
+   "osm": "way/985209241",
+   "name": null,
+   "lat": 60.394417,
+   "lon": 5.328346,
+   "bryggen": false
+  },
+  "1932": {
+   "osm": "way/985209277",
+   "name": null,
+   "lat": 60.394631,
+   "lon": 5.326234,
+   "bryggen": false
+  },
+  "2011": {
+   "osm": "way/985626801",
+   "name": null,
+   "lat": 60.396007,
+   "lon": 5.331506,
+   "bryggen": false
+  },
+  "2012": {
+   "osm": "way/985626809",
+   "name": null,
+   "lat": 60.395831,
+   "lon": 5.330555,
+   "bryggen": false
+  },
+  "2014": {
+   "osm": "way/985626814",
+   "name": null,
+   "lat": 60.394981,
+   "lon": 5.330413,
+   "bryggen": false
+  },
+  "2018": {
+   "osm": "way/985626828",
+   "name": null,
+   "lat": 60.394898,
+   "lon": 5.329869,
+   "bryggen": false
+  },
+  "2020": {
+   "osm": "way/985626850",
+   "name": null,
+   "lat": 60.395623,
+   "lon": 5.329956,
+   "bryggen": false
+  },
+  "2022": {
+   "osm": "way/985626853",
+   "name": null,
+   "lat": 60.396438,
+   "lon": 5.330118,
+   "bryggen": false
+  },
+  "2024": {
+   "osm": "way/985626861",
+   "name": null,
+   "lat": 60.395748,
+   "lon": 5.330313,
+   "bryggen": false
+  },
+  "2025": {
+   "osm": "way/985626878",
+   "name": null,
+   "lat": 60.396092,
+   "lon": 5.329493,
+   "bryggen": false
+  },
+  "2026": {
+   "osm": "way/985626879",
+   "name": null,
+   "lat": 60.395679,
+   "lon": 5.330041,
+   "bryggen": false
+  },
+  "2027": {
+   "osm": "way/985626886",
+   "name": null,
+   "lat": 60.395877,
+   "lon": 5.329679,
+   "bryggen": false
+  },
+  "2028": {
+   "osm": "way/985626909",
+   "name": null,
+   "lat": 60.395125,
+   "lon": 5.330554,
+   "bryggen": false
+  },
+  "2029": {
+   "osm": "way/985626911",
+   "name": null,
+   "lat": 60.396305,
+   "lon": 5.330581,
+   "bryggen": false
+  },
+  "2030": {
+   "osm": "way/985626913",
+   "name": null,
+   "lat": 60.395748,
+   "lon": 5.329926,
+   "bryggen": false
+  },
+  "2034": {
+   "osm": "way/985626944",
+   "name": null,
+   "lat": 60.39536,
+   "lon": 5.330292,
+   "bryggen": false
+  },
+  "2035": {
+   "osm": "way/985626950",
+   "name": null,
+   "lat": 60.39504,
+   "lon": 5.330607,
+   "bryggen": false
+  },
+  "2036": {
+   "osm": "way/985626952",
+   "name": null,
+   "lat": 60.395781,
+   "lon": 5.329745,
+   "bryggen": false
+  },
+  "2037": {
+   "osm": "way/985626961",
+   "name": null,
+   "lat": 60.396172,
+   "lon": 5.330437,
+   "bryggen": false
+  },
+  "2040": {
+   "osm": "way/985626971",
+   "name": null,
+   "lat": 60.396244,
+   "lon": 5.330739,
+   "bryggen": false
+  },
+  "2043": {
+   "osm": "way/985626997",
+   "name": null,
+   "lat": 60.396297,
+   "lon": 5.32875,
+   "bryggen": false
+  },
+  "2044": {
+   "osm": "way/985627000",
+   "name": null,
+   "lat": 60.395277,
+   "lon": 5.330298,
+   "bryggen": false
+  },
+  "2045": {
+   "osm": "way/985627004",
+   "name": null,
+   "lat": 60.39616,
+   "lon": 5.328994,
+   "bryggen": false
+  },
+  "2051": {
+   "osm": "way/985627046",
+   "name": null,
+   "lat": 60.395326,
+   "lon": 5.330511,
+   "bryggen": false
+  },
+  "2052": {
+   "osm": "way/985627054",
+   "name": null,
+   "lat": 60.395325,
+   "lon": 5.330168,
+   "bryggen": false
+  },
+  "2054": {
+   "osm": "way/985627069",
+   "name": null,
+   "lat": 60.395081,
+   "lon": 5.330428,
+   "bryggen": false
+  },
+  "2057": {
+   "osm": "way/985627093",
+   "name": null,
+   "lat": 60.396474,
+   "lon": 5.330007,
+   "bryggen": false
+  },
+  "2058": {
+   "osm": "way/985627094",
+   "name": null,
+   "lat": 60.394922,
+   "lon": 5.330181,
+   "bryggen": false
+  },
+  "2060": {
+   "osm": "way/985627098",
+   "name": null,
+   "lat": 60.395109,
+   "lon": 5.33015,
+   "bryggen": false
+  },
+  "2061": {
+   "osm": "way/985627100",
+   "name": null,
+   "lat": 60.395222,
+   "lon": 5.330105,
+   "bryggen": false
+  },
+  "2062": {
+   "osm": "way/985627106",
+   "name": null,
+   "lat": 60.395654,
+   "lon": 5.329673,
+   "bryggen": false
+  },
+  "2064": {
+   "osm": "way/985627123",
+   "name": null,
+   "lat": 60.396066,
+   "lon": 5.330921,
+   "bryggen": false
+  },
+  "2065": {
+   "osm": "way/985627124",
+   "name": null,
+   "lat": 60.395169,
+   "lon": 5.32995,
+   "bryggen": false
+  },
+  "2067": {
+   "osm": "way/985627128",
+   "name": null,
+   "lat": 60.395167,
+   "lon": 5.330317,
+   "bryggen": false
+  },
+  "2068": {
+   "osm": "way/985627133",
+   "name": null,
+   "lat": 60.39625,
+   "lon": 5.329736,
+   "bryggen": false
+  },
+  "2070": {
+   "osm": "way/985627136",
+   "name": null,
+   "lat": 60.396144,
+   "lon": 5.329507,
+   "bryggen": false
+  },
+  "2071": {
+   "osm": "way/985627139",
+   "name": null,
+   "lat": 60.395932,
+   "lon": 5.329049,
+   "bryggen": false
+  },
+  "2077": {
+   "osm": "way/985627173",
+   "name": null,
+   "lat": 60.395725,
+   "lon": 5.329801,
+   "bryggen": false
+  },
+  "2078": {
+   "osm": "way/985627178",
+   "name": null,
+   "lat": 60.39629,
+   "lon": 5.331206,
+   "bryggen": false
+  },
+  "2083": {
+   "osm": "way/985627198",
+   "name": null,
+   "lat": 60.395681,
+   "lon": 5.329857,
+   "bryggen": false
+  },
+  "2088": {
+   "osm": "way/985627211",
+   "name": null,
+   "lat": 60.395845,
+   "lon": 5.331115,
+   "bryggen": false
+  },
+  "2089": {
+   "osm": "way/985627212",
+   "name": null,
+   "lat": 60.396219,
+   "lon": 5.32955,
+   "bryggen": false
+  },
+  "2093": {
+   "osm": "way/985627229",
+   "name": null,
+   "lat": 60.396022,
+   "lon": 5.329409,
+   "bryggen": false
+  },
+  "2099": {
+   "osm": "way/1285102561",
+   "name": null,
+   "lat": 60.400231,
+   "lon": 5.324112,
+   "bryggen": false
+  },
+  "2112": {
+   "osm": "relation/6213473",
+   "name": "Mathallen",
+   "lat": 60.394647,
+   "lon": 5.323706,
+   "bryggen": false
+  },
+  "2115": {
+   "osm": "relation/6213595",
+   "name": "Scandic Torget Bergen",
+   "lat": 60.394146,
+   "lon": 5.324197,
+   "bryggen": false
+  },
+  "2116": {
+   "osm": "relation/6213595",
+   "name": "Scandic Torget Bergen",
+   "lat": 60.394241,
+   "lon": 5.323828,
+   "bryggen": false
+  },
+  "2120": {
+   "osm": "relation/7107262",
+   "name": "Frescohallen",
+   "lat": 60.39392,
+   "lon": 5.32592,
+   "bryggen": false
+  },
+  "2121": {
+   "osm": "relation/7107265",
+   "name": null,
+   "lat": 60.393669,
+   "lon": 5.327712,
+   "bryggen": false
+  },
+  "2122": {
+   "osm": "relation/7167475",
+   "name": null,
+   "lat": 60.398311,
+   "lon": 5.321522,
+   "bryggen": false
+  },
+  "2123": {
+   "osm": "relation/7167476",
+   "name": null,
+   "lat": 60.398299,
+   "lon": 5.321022,
+   "bryggen": false
+  },
+  "2124": {
+   "osm": "relation/7167477",
+   "name": null,
+   "lat": 60.398588,
+   "lon": 5.32122,
+   "bryggen": false
+  }
+ },
+ "mask_special": {
+  "0": "tafel/achtergrond",
+  "65001": "terrein",
+  "65002": "water",
+  "65003": "bomen",
+  "65004": "sokkel"
+ }
+}

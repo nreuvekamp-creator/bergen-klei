@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bergen, for Tess</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper: #1b1714;        /* backdrop around the diorama */
+    --ink: #f6efe4;
+    --ink-soft: #cdbfae;
+    --glass: rgba(28, 22, 18, 0.62);
+    --glass-line: rgba(255, 240, 220, 0.14);
+    --accent: #f2b56b;       /* warm clay orange: slider, 'toerist' glow */
+    --accent-samen: #f19bb4; /* soft rose: 'samen' glow */
+    --radius: 16px;
+    --gutter: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
+    font: 15px/1.45 Inter, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100dvh; display: block; touch-action: none; cursor: grab; }
+  canvas.dragging { cursor: grabbing; }
+  .panel { position: fixed; background: var(--glass); border: 1px solid var(--glass-line);
+    backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    border-radius: var(--radius); }
+  #title { top: max(var(--gutter), env(safe-area-inset-top)); left: var(--gutter); padding: 12px 16px 11px; max-width: calc(100vw - 2 * var(--gutter)); }
+  #title h1 { margin: 0; font: 600 22px/1.1 Fraunces, Georgia, serif; letter-spacing: 0.2px; }
+  #title p { margin: 3px 0 0; color: var(--ink-soft); font-size: 12.5px; }
+  #title .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: rgba(242,181,107,.18); color: var(--accent); font-size: 11px; }
+  #time { left: 50%; transform: translateX(-50%); bottom: max(var(--gutter), env(safe-area-inset-bottom));
+    width: min(520px, calc(100vw - 2 * var(--gutter))); padding: 12px 16px 10px; }
+  #time .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  #phase { font: 500 16px Fraunces, Georgia, serif; }
+  #clock { color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 6px 0 2px; accent-color: var(--accent); height: 24px; }
+  #stops { display: flex; justify-content: space-between; }
+  #stops button { background: none; border: 0; color: var(--ink-soft); font: 12px Inter, sans-serif; padding: 6px 2px; cursor: pointer; }
+  #stops button.on { color: var(--ink); }
+  #card { left: var(--gutter); bottom: calc(max(var(--gutter), env(safe-area-inset-bottom)) + 112px); width: min(360px, calc(100vw - 2 * var(--gutter)));
+    padding: 16px 18px 18px; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .25s, transform .25s; }
+  #card.open { opacity: 1; transform: none; pointer-events: auto; }
+  #card h2 { margin: 0 28px 6px 0; font: 600 20px/1.2 Fraunces, Georgia, serif; }
+  #card p { margin: 0; color: var(--ink-soft); }
+  #card img { display: block; width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: 10px; margin-bottom: 12px; }
+  #card img[hidden] { display: none; }
+  #close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: 0;
+    background: rgba(255,255,255,.08); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
+  #legend { display: flex; gap: 6px; margin-top: 9px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 999px;
+    border: 1px solid var(--glass-line); background: rgba(255,255,255,.06); color: var(--ink); font: 500 12px Inter, sans-serif; cursor: pointer; }
+  .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .chip.samen::before { background: var(--accent-samen); box-shadow: 0 0 8px var(--accent-samen); }
+  .chip[aria-pressed=false] { color: var(--ink-soft); background: none; opacity: .6; }
+  .chip[aria-pressed=false]::before { box-shadow: none; }
+  .chip.static { cursor: default; margin-bottom: 10px; }
+  .chip[hidden] { display: none; }
+  #card-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--glass-line); }
+  #card-nav[hidden] { display: none; }
+  #card-nav button { width: 36px; height: 32px; border-radius: 10px; border: 1px solid var(--glass-line); background: rgba(255,255,255,.06); cursor: pointer; }
+  #card-nav svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  #count { color: var(--ink-soft); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .arrow.samen svg { fill: var(--accent-samen); }
+  #card-meta { margin-top: 10px !important; color: var(--ink) !important; font-size: 14px; }
+  .arrow { position: fixed; left: 0; top: 0; display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 7px;
+    background: var(--glass); border: 1px solid var(--glass-line); border-radius: 999px; color: var(--ink);
+    font: 500 12px Inter, sans-serif; white-space: nowrap; cursor: pointer;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  .arrow svg { width: 12px; height: 12px; fill: var(--accent); flex: none; }
+  .arrow[hidden] { display: none; }
+  #err { position: fixed; inset: auto var(--gutter) 50% var(--gutter); text-align: center; color: var(--ink-soft); }
+  @media (max-width: 600px) {
+    #card { left: 50%; transform: translate(-50%, 10px); }
+    #card.open { transform: translate(-50%, 0); }
+    #title h1 { font-size: 19px; }
+  }
+</style>
+<script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+  <canvas id="c" aria-label="Kleien diorama van Bryggen, Bergen"></canvas>
+  <header id="title" class="panel">
+    <h1>Bergen, for Tess</h1>
+    <p>Bryggen in klei, tik op een plek<span id="badge" class="badge" hidden>testdata</span></p>
+    <div id="legend" aria-label="Toon categorie"></div>
+  </header>
+  <aside id="card" class="panel" aria-live="polite">
+    <button id="close" aria-label="Sluiten">×</button>
+    <span id="card-cat" class="chip static" hidden></span>
+    <img id="card-img" alt="" hidden>
+    <h2 id="card-title"></h2>
+    <p id="card-text"></p>
+    <p id="card-meta" hidden></p>
+    <nav id="card-nav" hidden>
+      <button id="prev" aria-label="Vorige plek"><svg viewBox="0 0 12 12"><path d="M8 2 L3 6 L8 10"/></svg></button>
+      <span id="count"></span>
+      <button id="next" aria-label="Volgende plek"><svg viewBox="0 0 12 12"><path d="M4 2 L9 6 L4 10"/></svg></button>
+    </nav>
+  </aside>
+  <section id="time" class="panel">
+    <div class="row"><span id="phase">Gouden uur</span><span id="clock"></span></div>
+    <input id="slider" type="range" min="0" max="4" step="0.01" value="2" aria-label="Tijd van de dag">
+    <div id="stops"></div>
+  </section>
+  <div id="arrows"></div>
+  <p id="err" hidden></p>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

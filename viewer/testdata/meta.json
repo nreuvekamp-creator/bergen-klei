@@ -1,0 +1,285 @@
+{
+ "synthetic": true,
+ "resolution": [
+  1280,
+  800
+ ],
+ "camera": {
+  "type": "ORTHO",
+  "ortho_scale": 120.0,
+  "pitch_deg": 35,
+  "yaw_deg": 0
+ },
+ "lightmap": {
+  "frame": "camera (x right, y away from camera, z up)",
+  "dirs": {
+   "r": [
+    0.8,
+    0.0,
+    0.6
+   ],
+   "g": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "b": [
+    0.0,
+    -0.8,
+    0.6
+   ]
+  }
+ },
+ "height": {
+  "min": 0.0,
+  "max": 65.491
+ },
+ "buildings": {
+  "1": {
+   "osm_id": 100001,
+   "naam": "Bellgården",
+   "color": "#5d89bf",
+   "lat": 60.395706,
+   "lon": 5.318593
+  },
+  "2": {
+   "osm_id": 100002,
+   "naam": "Svensgården",
+   "color": "#92ea8e",
+   "lat": 60.395685,
+   "lon": 5.3194
+  },
+  "3": {
+   "osm_id": 100003,
+   "naam": "Enhjørningsgården",
+   "color": "#c7835d",
+   "lat": 60.395694,
+   "lon": 5.32012
+  },
+  "4": {
+   "osm_id": 100004,
+   "naam": "Bredsgården",
+   "color": "#34e42c",
+   "lat": 60.395711,
+   "lon": 5.320845
+  },
+  "5": {
+   "osm_id": 100005,
+   "naam": "Jacobsfjorden",
+   "color": "#697dc3",
+   "lat": 60.395693,
+   "lon": 5.321663
+  },
+  "6": {
+   "osm_id": 100006,
+   "naam": "Bugården",
+   "color": "#9ede92",
+   "lat": 60.39571,
+   "lon": 5.322378
+  },
+  "7": {
+   "osm_id": 100007,
+   "naam": "Holmedalsgården",
+   "color": "#d37761",
+   "lat": 60.395705,
+   "lon": 5.323191
+  },
+  "8": {
+   "osm_id": 100008,
+   "naam": "Gullskogården",
+   "color": "#40d830",
+   "lat": 60.395726,
+   "lon": 5.324036
+  },
+  "9": {
+   "osm_id": 100009,
+   "naam": "Finnegården",
+   "color": "#7571c7",
+   "lat": 60.395683,
+   "lon": 5.32498
+  },
+  "10": {
+   "osm_id": 100010,
+   "naam": "Bryggen",
+   "color": "#aad296",
+   "lat": 60.395696,
+   "lon": 5.325831
+  },
+  "11": {
+   "osm_id": 100011,
+   "naam": "Schøtstuene",
+   "color": "#df6b65",
+   "lat": 60.395704,
+   "lon": 5.326715
+  },
+  "12": {
+   "osm_id": 100012,
+   "naam": "Rosenkrantztårnet",
+   "color": "#4ccc34",
+   "lat": 60.395669,
+   "lon": 5.327539
+  },
+  "13": {
+   "osm_id": 100013,
+   "naam": "Dreggsallmenningen",
+   "color": "#8165cb",
+   "lat": 60.395673,
+   "lon": 5.328253
+  },
+  "14": {
+   "osm_id": 100014,
+   "naam": "Søstergården",
+   "color": "#b6c69a",
+   "lat": 60.395735,
+   "lon": 5.329087
+  },
+  "15": {
+   "osm_id": 100015,
+   "naam": "Kappen",
+   "color": "#eb5f69",
+   "lat": 60.395687,
+   "lon": 5.329949
+  },
+  "16": {
+   "osm_id": 100016,
+   "naam": "Leppen",
+   "color": "#58c038",
+   "lat": 60.395666,
+   "lon": 5.330566
+  },
+  "17": {
+   "osm_id": 100017,
+   "naam": "Bellgården",
+   "color": "#8d59cf",
+   "lat": 60.396667,
+   "lon": 5.318691
+  },
+  "18": {
+   "osm_id": 100018,
+   "naam": "Svensgården",
+   "color": "#c2ba9e",
+   "lat": 60.396664,
+   "lon": 5.319671
+  },
+  "19": {
+   "osm_id": 100019,
+   "naam": "Enhjørningsgården",
+   "color": "#2f536d",
+   "lat": 60.396662,
+   "lon": 5.320547
+  },
+  "20": {
+   "osm_id": 100020,
+   "naam": "Bredsgården",
+   "color": "#64b43c",
+   "lat": 60.396655,
+   "lon": 5.321246
+  },
+  "21": {
+   "osm_id": 100021,
+   "naam": "Jacobsfjorden",
+   "color": "#994dd3",
+   "lat": 60.396656,
+   "lon": 5.3221
+  },
+  "22": {
+   "osm_id": 100022,
+   "naam": "Bugården",
+   "color": "#ceaea2",
+   "lat": 60.39662,
+   "lon": 5.322916
+  },
+  "23": {
+   "osm_id": 100023,
+   "naam": "Holmedalsgården",
+   "color": "#3b4771",
+   "lat": 60.396662,
+   "lon": 5.323677
+  },
+  "24": {
+   "osm_id": 100024,
+   "naam": "Gullskogården",
+   "color": "#70a840",
+   "lat": 60.396605,
+   "lon": 5.324476
+  },
+  "25": {
+   "osm_id": 100025,
+   "naam": "Finnegården",
+   "color": "#a541d7",
+   "lat": 60.396629,
+   "lon": 5.325267
+  },
+  "26": {
+   "osm_id": 100026,
+   "naam": "Bryggen",
+   "color": "#daa2a6",
+   "lat": 60.396651,
+   "lon": 5.326065
+  },
+  "27": {
+   "osm_id": 100027,
+   "naam": "Schøtstuene",
+   "color": "#473b75",
+   "lat": 60.396674,
+   "lon": 5.326938
+  },
+  "28": {
+   "osm_id": 100028,
+   "naam": "Rosenkrantztårnet",
+   "color": "#7c9c44",
+   "lat": 60.396645,
+   "lon": 5.327861
+  },
+  "29": {
+   "osm_id": 100029,
+   "naam": "Dreggsallmenningen",
+   "color": "#b135db",
+   "lat": 60.396661,
+   "lon": 5.328696
+  },
+  "30": {
+   "osm_id": 100030,
+   "naam": "Søstergården",
+   "color": "#e696aa",
+   "lat": 60.396668,
+   "lon": 5.329614
+  },
+  "31": {
+   "osm_id": 100031,
+   "naam": "Kappen",
+   "color": "#532f79",
+   "lat": 60.39662,
+   "lon": 5.330459
+  }
+ },
+ "places": [
+  {
+   "naam": "Bryggen",
+   "lat": 60.3975,
+   "lon": 5.3245,
+   "pixel": [
+    640.0,
+    159.1
+   ]
+  },
+  {
+   "naam": "Fisketorget",
+   "lat": 60.3948,
+   "lon": 5.3248,
+   "pixel": [
+    667.5,
+    659.5
+   ]
+  },
+  {
+   "naam": "Fløibanen",
+   "lat": 60.3964,
+   "lon": 5.3285,
+   "pixel": [
+    1006.7,
+    362.9
+   ]
+  }
+ ]
+}

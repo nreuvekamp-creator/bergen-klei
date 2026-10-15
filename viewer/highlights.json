@@ -1,0 +1,91 @@
+{
+  "_uitleg": "Eén item per plek. Koppeling (eerste die past wint): 'mask_id' (id uit meta.json), 'plek' (naam van een gebouw of plek in meta.json), anders 'lat'/'lon' (omgerekend naar beeld). Valt de plek buiten beeld, dan verschijnt een pijltje aan de rand. 'weer': regen of zon. 'categorie': toerist of samen (andere gloedkleur). 'foto' (url) is optioneel. Coördinaten zijn bij benadering.",
+  "items": [
+    {
+      "titel": "Bryggen bezoeken",
+      "tekst": "De houten Hanze-kade, UNESCO-werelderfgoed. Rondwandelen is gratis, sfeervol ook met een paraplu.",
+      "weer": "regen",
+      "kosten": "gratis",
+      "plek": "Bryggen",
+      "lat": 60.3975,
+      "lon": 5.3245,
+      "categorie": "toerist"
+    },
+    {
+      "titel": "Vismarkt, klassiek visbrød",
+      "tekst": "Overdekte hal bij Torget, prima bij regen. Het klassieke broodje vis is hier de beste keuze.",
+      "weer": "regen",
+      "kosten": "ca. kr 140",
+      "plek": "Fisketorget",
+      "lat": 60.3948,
+      "lon": 5.3248,
+      "categorie": "toerist"
+    },
+    {
+      "titel": "Fløyen oplopen",
+      "tekst": "Start bij het dalstation van de Fløibanen (Vetrlidsallmenningen 21). Gewoon te voet naar boven, geen kabelbaan nodig.",
+      "weer": "zon",
+      "kosten": "gratis",
+      "plek": "Fløibanen",
+      "lat": 60.3964,
+      "lon": 5.3285,
+      "categorie": "toerist"
+    },
+    {
+      "titel": "Vågal",
+      "tekst": "Kong Oscars gate 10. Knus, veel loungebanken, koffie en matcha een 7/10.",
+      "weer": "regen",
+      "kosten": "",
+      "plek": "Vågal",
+      "lat": 60.3955,
+      "lon": 5.3268,
+      "categorie": "samen"
+    },
+    {
+      "titel": "Hotdog eten",
+      "tekst": "Rond Torget en Fisketorget. De klassieke 99-kroner toeristenversie: een tourist trap, maar eentje die je een keer moet proberen.",
+      "weer": "regen",
+      "kosten": "kr 99",
+      "plek": "Hotdog",
+      "lat": 60.3946,
+      "lon": 5.3256,
+      "categorie": "toerist"
+    },
+    {
+      "titel": "Sandviksbatteriet",
+      "tekst": "Oude kustbatterij boven Sandviken, ten noorden van Bryggen.",
+      "weer": "zon",
+      "kosten": "gratis",
+      "lat": 60.4105,
+      "lon": 5.32,
+      "categorie": "samen"
+    },
+    {
+      "titel": "Café Klee",
+      "tekst": "Herman Foss gate 12. Favoriet tot nu toe.",
+      "weer": "regen",
+      "kosten": "",
+      "lat": 60.3885,
+      "lon": 5.324,
+      "categorie": "samen"
+    },
+    {
+      "titel": "Floating sauna Heit",
+      "tekst": "Drijvende sauna bij Marineholmen.",
+      "weer": "zon",
+      "kosten": "",
+      "lat": 60.3825,
+      "lon": 5.3225,
+      "categorie": "samen"
+    },
+    {
+      "titel": "Bordspelavond",
+      "tekst": "Woensdag 21 oktober in Nordnes Bydelshus.",
+      "weer": "regen",
+      "kosten": "",
+      "lat": 60.399,
+      "lon": 5.311,
+      "categorie": "samen"
+    }
+  ]
+}
