@@ -29,6 +29,7 @@
   #title { top: max(var(--gutter), env(safe-area-inset-top)); left: var(--gutter); padding: 12px 16px 11px; max-width: calc(100vw - 2 * var(--gutter)); }
   #title h1 { margin: 0; font: 600 22px/1.1 Fraunces, Georgia, serif; letter-spacing: 0.2px; }
   #title p { margin: 3px 0 0; color: var(--ink-soft); font-size: 12.5px; }
+  #title .badge[hidden] { display: none; }
   #title .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: rgba(242,181,107,.18); color: var(--accent); font-size: 11px; }
   #time { left: 50%; transform: translateX(-50%); bottom: max(var(--gutter), env(safe-area-inset-bottom));
     width: min(520px, calc(100vw - 2 * var(--gutter))); padding: 12px 16px 10px; }
@@ -62,14 +63,7 @@
   #card-nav button { width: 36px; height: 32px; border-radius: 10px; border: 1px solid var(--glass-line); background: rgba(255,255,255,.06); cursor: pointer; }
   #card-nav svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   #count { color: var(--ink-soft); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-  .arrow.samen svg { fill: var(--accent-samen); }
   #card-meta { margin-top: 10px !important; color: var(--ink) !important; font-size: 14px; }
-  .arrow { position: fixed; left: 0; top: 0; display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 7px;
-    background: var(--glass); border: 1px solid var(--glass-line); border-radius: 999px; color: var(--ink);
-    font: 500 12px Inter, sans-serif; white-space: nowrap; cursor: pointer;
-    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
-  .arrow svg { width: 12px; height: 12px; fill: var(--accent); flex: none; }
-  .arrow[hidden] { display: none; }
   #err { position: fixed; inset: auto var(--gutter) 50% var(--gutter); text-align: center; color: var(--ink-soft); }
   @media (max-width: 600px) {
     #card { left: 50%; transform: translate(-50%, 10px); }
@@ -78,7 +72,8 @@
   }
 </style>
 <script type="importmap">
-  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js" } }
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+    "fast-png": "https://cdn.jsdelivr.net/npm/fast-png@6.2.0/+esm" } }
 </script>
 </head>
 <body>
@@ -106,7 +101,6 @@
     <input id="slider" type="range" min="0" max="4" step="0.01" value="2" aria-label="Tijd van de dag">
     <div id="stops"></div>
   </section>
-  <div id="arrows"></div>
   <p id="err" hidden></p>
   <script type="module" src="main.js"></script>
 </body>

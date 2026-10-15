@@ -1,5 +1,5 @@
 {
-  "_uitleg": "Eén item per plek. Koppeling (eerste die past wint): 'mask_id' (id uit meta.json), 'plek' (naam van een gebouw of plek in meta.json), anders 'lat'/'lon' (omgerekend naar beeld). Valt de plek buiten beeld, dan verschijnt een pijltje aan de rand. 'weer': regen of zon. 'categorie': toerist of samen (andere gloedkleur). 'foto' (url) is optioneel. Coördinaten zijn bij benadering.",
+  "_uitleg": "Eén item per plek. Koppeling (eerste die past wint): 'mask_id' (id uit meta.json), 'plek' (naam van een gebouw of plek in meta.json), anders 'lat'/'lon' (omgerekend naar beeld). Plekken buiten beeld worden niet getoond. 'weer': regen of zon. 'categorie': toerist of samen (andere gloedkleur). 'foto' (url) is optioneel. Coördinaten zijn bij benadering.",
   "items": [
     {
       "titel": "Bryggen bezoeken",
@@ -19,16 +19,6 @@
       "plek": "Fisketorget",
       "lat": 60.3948,
       "lon": 5.3248,
-      "categorie": "toerist"
-    },
-    {
-      "titel": "Fløyen oplopen",
-      "tekst": "Start bij het dalstation van de Fløibanen (Vetrlidsallmenningen 21). Gewoon te voet naar boven, geen kabelbaan nodig.",
-      "weer": "zon",
-      "kosten": "gratis",
-      "plek": "Fløibanen",
-      "lat": 60.3964,
-      "lon": 5.3285,
       "categorie": "toerist"
     },
     {

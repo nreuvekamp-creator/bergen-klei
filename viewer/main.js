@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { decode as decodePng } from 'fast-png';
 
 const $ = (id) => document.getElementById(id);
 const Q = new URLSearchParams(location.search);
@@ -15,18 +16,40 @@ const tex = (url, color) => loader.loadAsync(url).then((t) => {
   return t;
 });
 const optional = (p) => p.catch(() => null);
+// 16-bit PNGs (height, mask ids, lightmap) are decoded in JS: the browser would squash them to 8 bit
+async function png(url) {
+  const r = await fetch(url, { cache: 'no-cache' });
+  if (!r.ok) throw new Error(`${url} ${r.status}`);
+  const p = decodePng(new Uint8Array(await r.arrayBuffer()));
+  return { w: p.width, h: p.height, ch: p.channels ?? p.data.length / (p.width * p.height), max: 2 ** p.depth - 1, data: p.data };
+}
+// decoded PNG -> half-float texture (rows flipped so uv (0,0) is bottom-left like TextureLoader)
+function floatTex(p, chans) {
+  const out = new Uint16Array(p.w * p.h * chans), toHalf = THREE.DataUtils.toHalfFloat;
+  for (let y = 0; y < p.h; y++) for (let x = 0; x < p.w; x++) {
+    const i = (y * p.w + x) * p.ch, o = ((p.h - 1 - y) * p.w + x) * chans;
+    for (let c = 0; c < chans; c++) out[o + c] = toHalf(c < p.ch ? p.data[i + c] / p.max : 1);
+  }
+  const t = new THREE.DataTexture(out, p.w, p.h, chans === 1 ? THREE.RedFormat : THREE.RGBAFormat, THREE.HalfFloatType);
+  t.magFilter = t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
 
 async function loadSet(base) {
   const meta = await fetch(`${base}/meta.json`, { cache: 'no-cache' }).then((r) => {
     if (!r.ok) throw new Error(`${base}/meta.json ${r.status}`);
     return r.json();
   });
-  const [alb, lm, nrm, hgt, ao, mask] = await Promise.all([
-    tex(`${base}/albedo.png`, true), optional(tex(`${base}/lightmap.png`)), optional(tex(`${base}/normal.png`)),
-    tex(`${base}/height.png`), optional(tex(`${base}/ao.png`)), tex(`${base}/mask.png`),
+  // optional passes: only request what meta.passes lists (no 404s in the console)
+  const has = (f) => !meta.passes || f in meta.passes;
+  const opt = (f, load) => has(f) ? optional(load(`${base}/${f}`)) : null;
+  const [alb, nrm, ao, hgt, lm, mask, win] = await Promise.all([
+    tex(`${base}/albedo.png`, true), opt('normal.png', tex), opt('ao.png', tex),
+    png(`${base}/height.png`), opt('lightmap.png', png), opt('mask.png', png), opt('windows.png', tex),
   ]);
   if (!lm && !nrm) throw new Error('lightmap.png en normal.png ontbreken allebei');
-  return { base, meta, alb, lm, nrm, hgt, ao, mask };
+  return { base, meta, alb, nrm, ao, hgt: floatTex(hgt, 1), lm: lm && floatTex(lm, 4), maskPng: mask, win };
 }
 
 let data;
@@ -41,61 +64,80 @@ const { meta } = data;
 const W = data.alb.image.width, H = data.alb.image.height;
 const num = (...v) => v.find((x) => typeof x === 'number' && isFinite(x));
 const cam = meta.camera || {};
-const rotX = Array.isArray(cam.rotation_euler) ? cam.rotation_euler[0] : undefined;
-const pitchDeg = num(+Q.get('pitch') || undefined, cam.pitch_deg, rotX !== undefined ? 90 - (Math.abs(rotX) < 7 ? rotX * 180 / Math.PI : rotX) : undefined, 35);
+const pitchDeg = num(+Q.get('pitch') || undefined, cam.pitch_down_deg, cam.pitch_deg, 35);
 const P = pitchDeg * Math.PI / 180;
-const hMin = num(meta.height?.min, meta.height_min, meta.hoogte?.min, 0);
-const hMax = num(meta.height?.max, meta.height_max, meta.hoogte?.max, 60);
-// ponytail: perspective cameras are treated as ortho with this scale; fine for a long-lens diorama shot.
-const mpp = num(+Q.get('mpp') || undefined, meta.meters_per_pixel, cam.ortho_scale ? cam.ortho_scale / Math.max(W, H) : undefined, 0.1);
+const camUp = new THREE.Vector3(0, Math.sin(P), Math.cos(P)), camFwd = new THREE.Vector3(0, Math.cos(P), -Math.sin(P));
+// "camera frame" = x right, y away from the camera (horizontal), z up -> view space (x right, y up, z to viewer)
+const toView = (s) => new THREE.Vector3(s.x, s.dot(camUp), -s.dot(camFwd));
+const hMin = num(meta.height?.min, meta.height_min, 0);
+const hMax = num(meta.height?.max, meta.height_max, 60);
+if (meta.height_max === null) console.info('meta.json: height_min/max nog leeg, val terug op 0-60 m');
+// metres per image pixel at the subject; a long-lens perspective camera is treated as ortho
+const camDist = cam.position && cam.target ? Math.hypot(...cam.position.map((v, i) => v - cam.target[i])) : 0;
+const mpp = num(+Q.get('mpp') || undefined, meta.meters_per_pixel, cam.ortho_scale ? cam.ortho_scale / Math.max(W, H) : undefined,
+  camDist && cam.fov_x_deg ? 2 * camDist * Math.tan(cam.fov_x_deg * Math.PI / 360) / W : undefined, 0.1);
+const pxScale = W / (meta.resolution?.[0] || W);   // meta pixel coordinates may be for a smaller render
 
+// lightmap directions, in view space: meta.light_dirs.X.camera (Blender) or testdata's camera-frame dirs
 const toVec = (v) => Array.isArray(v) ? new THREE.Vector3(...v) : v ? new THREE.Vector3(v.x, v.y, v.z) : null;
-const lmDirsRaw = meta.lightmap?.dirs || meta.lightmap_dirs || meta.lightmap || {};
-const lmDirs = ['r', 'g', 'b'].map((c, i) => (toVec(lmDirsRaw[c] || lmDirsRaw[c.toUpperCase()]) ||
-  [new THREE.Vector3(0.8, 0, 0.6), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, -0.8, 0.6)][i]).normalize());
+const lmDirs = ['R', 'G', 'B'].map((c, i) => {
+  const blender = toVec(meta.light_dirs?.[c]?.camera);
+  if (blender) return blender.normalize();
+  const own = toVec(meta.lightmap?.dirs?.[c.toLowerCase()]) || [new THREE.Vector3(.8, 0, .6), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, -.8, .6)][i];
+  return toView(own.normalize());
+});
 const lmInv = new THREE.Matrix3().set(
   lmDirs[0].x, lmDirs[1].x, lmDirs[2].x,
   lmDirs[0].y, lmDirs[1].y, lmDirs[2].y,
   lmDirs[0].z, lmDirs[1].z, lmDirs[2].z).invert();
+const lmWeights = (s) => { const w = toView(s).applyMatrix3(lmInv); return w.set(Math.max(w.x, 0), Math.max(w.y, 0), Math.max(w.z, 0)); };
 
-// mask colours: "#rrggbb", [r,g,b] (0-1 or 0-255), or a hex key
-const parseRGB = (c) => {
-  if (typeof c === 'string' && /^#?[0-9a-f]{6}$/i.test(c)) { const h = c.replace('#', ''); return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)); }
-  if (Array.isArray(c)) return c.every((x) => x <= 1) ? c.slice(0, 3).map((x) => Math.round(x * 255)) : c.slice(0, 3).map(Math.round);
+// ---------- mask: 16-bit grey ids (Blender) or RGB id colours (testdata) ----------
+const mp = data.maskPng;
+const gray = !mp || mp.ch <= 2;
+const MW = mp?.w || 1, MH = mp?.h || 1;
+const maskKeys = new Uint32Array(MW * MH);
+const maskRGBA = new Uint8Array(MW * MH * 4);
+const keyRGB = (k) => gray ? [k >> 8, k & 255, 0] : [k >> 16, (k >> 8) & 255, k & 255];
+if (mp) for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
+  const i = (y * MW + x) * mp.ch;
+  const k = gray ? mp.data[i] : (mp.data[i] << 16) | (mp.data[i + 1] << 8) | mp.data[i + 2];
+  maskKeys[y * MW + x] = k;
+  maskRGBA.set([...keyRGB(k), 255], ((MH - 1 - y) * MW + x) * 4);
+}
+const maskTex = new THREE.DataTexture(maskRGBA, MW, MH, THREE.RGBAFormat);
+maskTex.minFilter = maskTex.magFilter = THREE.NearestFilter;
+maskTex.needsUpdate = true;
+const maskAt = (ix, iy) => maskKeys[Math.floor(iy * MH / H) * MW + Math.floor(ix * MW / W)] || 0;
+
+const parseKey = (c) => {
+  if (typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)) return parseInt(c.slice(1), 16);
+  if (Array.isArray(c)) { const v = c.every((x) => x <= 1) ? c.map((x) => Math.round(x * 255)) : c; return (v[0] << 16) | (v[1] << 8) | v[2]; }
   return null;
 };
-const buildings = Object.entries(meta.buildings || meta.mask_ids || meta.mask || meta.ids || {}).map(([id, b]) => ({
-  id, ...b, name: b.naam || b.name || '', rgb: parseRGB(b.color ?? b.kleur ?? b.mask_color ?? id),
-})).filter((b) => b.rgb);
-const pxOf = (p) => p.pixel || p.px || (p.x !== undefined ? [p.x, p.y] : null);
-const places = (meta.places || meta.plekken || meta.landmarks || []).map((p) => ({ name: p.naam || p.name || p.titel, px: pxOf(p) })).filter((p) => p.px);
-
-// mask pixels on a canvas, for picking and highlight centroids
-const maskCtx = Object.assign(document.createElement('canvas'), { width: W, height: H }).getContext('2d', { willReadFrequently: true });
-maskCtx.drawImage(data.mask.image, 0, 0, W, H);
-const sameRGB = (a, b) => a && b && Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) < 6;
-const maskAt = (x, y) => [...maskCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data.slice(0, 3)];
-
-// ---------- highlights (highlights.json) ----------
-{ // centroid per mask colour (one full scan), used for highlight positions and the geo fit
-  const d = maskCtx.getImageData(0, 0, W, H).data, acc = new Map();
-  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    const key = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
-    if (!key) continue;
-    const a = acc.get(key) || acc.set(key, [0, 0, 0]).get(key);
-    a[0] += p % W; a[1] += (p / W) | 0; a[2]++;
+const buildings = Object.entries(meta.buildings || meta.mask_ids || {}).map(([id, b]) => ({
+  id, ...b, name: b.naam || b.name || '', key: gray ? Number(id) : parseKey(b.color),
+})).filter((b) => b.key);
+{ // centroid per mask id (one scan), for highlight positions and the geo fit
+  const acc = new Map();
+  for (let p = 0; p < maskKeys.length; p++) {
+    const k = maskKeys[p];
+    if (!k) continue;
+    const a = acc.get(k) || acc.set(k, [0, 0, 0]).get(k);
+    a[0] += p % MW; a[1] += (p / MW) | 0; a[2]++;
   }
-  for (const b of buildings) {
-    const a = acc.get((b.rgb[0] << 16) | (b.rgb[1] << 8) | b.rgb[2]);
-    b.px = a ? [a[0] / a[2], a[1] / a[2]] : null;
-  }
+  for (const b of buildings) { const a = acc.get(b.key); b.px = a ? [(a[0] / a[2] + .5) * W / MW, (a[1] / a[2] + .5) * H / MH] : null; }
 }
+const list = (o) => Array.isArray(o) ? o : Object.values(o || {});
+const pxOf = (p) => { const v = p.pixel || p.px; if (!v) return null; const xy = Array.isArray(v) ? v : [v.x, v.y]; return [xy[0] * pxScale, xy[1] * pxScale]; };
+const places = [...list(meta.places), ...list(meta.landmarks), ...list(meta.offscreen)]
+  .map((p) => ({ name: p.naam || p.name || '', lat: p.lat, lon: p.lon, building_id: p.building_id, px: pxOf(p) })).filter((p) => p.px);
+
 // lat/lon -> image pixel: least-squares affine fit over everything in meta.json that has both
 const geoFit = (() => {
-  const pts = [...buildings, ...(meta.places || meta.plekken || meta.landmarks || []).map((p) => ({ ...p, px: pxOf(p) }))]
-    .filter((p) => p.px && isFinite(p.lat) && isFinite(p.lon));
+  const pts = [...buildings, ...places].filter((p) => p.px && isFinite(p.lat) && isFinite(p.lon));
   if (pts.length < 3) return null;
-  const A = new THREE.Matrix3().set(0, 0, 0, 0, 0, 0, 0, 0, 0).elements, bx = [0, 0, 0], by = [0, 0, 0];
+  const A = new Array(9).fill(0), bx = [0, 0, 0], by = [0, 0, 0];
   const lon0 = pts.reduce((a, p) => a + p.lon, 0) / pts.length, lat0 = pts.reduce((a, p) => a + p.lat, 0) / pts.length;
   for (const p of pts) {
     const r = [(p.lon - lon0) * 1e3, (p.lat - lat0) * 1e3, 1];   // centred: raw degrees make the normal equations ill-conditioned
@@ -107,18 +149,21 @@ const geoFit = (() => {
   return (lat, lon) => { const a = (lon - lon0) * 1e3, b = (lat - lat0) * 1e3; return [cx.x * a + cx.y * b + cx.z, cy.x * a + cy.y * b + cy.z]; };
 })();
 
+// ---------- highlights (highlights.json) ----------
 const hlFile = await fetch('highlights.json', { cache: 'no-cache' }).then((r) => r.json()).catch(() => ({ items: [] }));
-const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-const byName = (list, n) => n && (list.find((x) => norm(x.name) === norm(n)) || list.find((x) => x.name && norm(x.name).includes(norm(n))));
+const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const byName = (arr, n) => n && (arr.find((x) => norm(x.name) === norm(n)) || arr.find((x) => x.name && norm(x.name).includes(norm(n))));
 const highlights = [];
 for (const it of hlFile.items || []) {
-  const b = it.mask_id != null ? buildings.find((x) => x.id === String(it.mask_id))
+  let b = it.mask_id != null ? buildings.find((x) => x.id === String(it.mask_id))
     : buildings.find((x) => it.plek && norm(x.name) === norm(it.plek));
   const pl = !b && byName(places, it.plek);
+  if (!b && pl && pl.building_id != null) b = buildings.find((x) => x.id === String(pl.building_id));
+  if (b && !b.px) b = null;   // building not visible in this mask
   const px = b?.px || pl?.px || (geoFit && isFinite(it.lat) ? geoFit(it.lat, it.lon) : it.pixel);
-  if (!px) { console.info('highlight zonder positie:', it.titel); continue; }
-  const inImg = px[0] >= 0 && px[0] < W && px[1] >= 0 && px[1] < H;
-  highlights.push({ ...it, kind: b ? 'mask' : 'pixel', rgb: b?.rgb, px, inImg });
+  const inImg = px && px[0] >= 0 && px[0] < W && px[1] >= 0 && px[1] < H;
+  if (!inImg) { console.info('highlight niet in beeld, overgeslagen:', it.titel); continue; }   // only places inside the diorama
+  highlights.push({ ...it, kind: b ? 'mask' : 'pixel', key: b?.key, px, inImg });
 }
 highlights.splice(MAX_HI);
 
@@ -139,9 +184,6 @@ function phaseAt(t) {
   return { key: mixArr(a.key, b.key, f), fill: mixArr(a.fill, b.fill, f), amb: mixArr(a.amb, b.amb, f), win: lerp(a.win, b.win, f), clock: lerp(a.clock, b.clock, t - i) };
 }
 const dirOf = (az, el) => { const a = az * Math.PI / 180, e = el * Math.PI / 180; return new THREE.Vector3(Math.sin(a) * Math.cos(e), -Math.cos(a) * Math.cos(e), Math.sin(e)); };
-const camUp = new THREE.Vector3(0, Math.sin(P), Math.cos(P)), camFwd = new THREE.Vector3(0, Math.cos(P), -Math.sin(P));
-const toView = (s) => new THREE.Vector3(s.x, s.dot(camUp), -s.dot(camFwd));     // camera frame -> view space (normal.png)
-const lmWeights = (s) => { const w = s.clone().applyMatrix3(lmInv); return w.set(Math.max(w.x, 0), Math.max(w.y, 0), Math.max(w.z, 0)); };
 
 // ---------- GL ----------
 const canvas = $('c');
@@ -151,13 +193,38 @@ catch (e) { $('err').hidden = false; $('err').textContent = 'WebGL is niet besch
 renderer.setPixelRatio(DPR);
 const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 const quad = (mat) => { const s = new THREE.Scene(); s.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat)); return s; };
+const winUniforms = () => ({
+  tNrm: { value: data.nrm }, tWinTex: { value: data.win }, uHasNrm: { value: !!data.nrm }, uHasWinTex: { value: !!data.win },
+  uImg: { value: new THREE.Vector2(W, H) }, uMpp: { value: mpp }, uWin: { value: 0 }, uUpV: { value: toView(new THREE.Vector3(0, 0, 1)) },
+});
 const VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }';
+const WIN = `
+// fixed rectangular windows: only on camera-facing vertical facades, pane fully inside one building id
+float facadeAt(vec2 uv){
+  if (!uHasNrm) return 1.;
+  vec3 n = normalize(texture(tNrm, uv).xyz * 2. - 1.);
+  return step(abs(dot(n, uUpV)), .3) * step(.35, n.z);
+}
+bool sameId(vec2 uv, vec3 m){ return distance(texture(tMask, uv).rgb, m) < .001; }
+float windowAt(vec2 uv){
+  vec3 m = texture(tMask, uv).rgb;
+  if (m.r + m.g + m.b < .5 / 255. || m.r > 249.5 / 255.) return 0.;   // no building (ids >= 65001 = terrain/water/trees)
+  vec2 px = uv * uImg;
+  if (uHasWinTex) return texture(tWinTex, uv).r * step(hash(floor(px / 8.) + m.rg * 97.), .6);
+  vec2 cs = max(vec2(1.6, 2.4) / uMpp, vec2(5., 6.));                // window cell in render px (never sub-pixel)
+  vec2 c = floor(px / cs), l = fract(px / cs);
+  vec2 a = (c + vec2(.26, .2)) * cs / uImg, b = (c + vec2(.74, .74)) * cs / uImg;
+  if (!sameId(a, m) || !sameId(b, m) || !sameId(vec2(a.x, b.y), m) || !sameId(vec2(b.x, a.y), m)) return 0.;
+  if (facadeAt(a) * facadeAt(b) * facadeAt(uv) < .5) return 0.;
+  float on = step(hash(c + m.rg * 97.), .42);                         // fixed per window: on or off, no flicker
+  float e = .9 / cs.x;
+  return on * smoothstep(.26, .26 + e, l.x) * smoothstep(.74, .74 - e, l.x) * smoothstep(.2, .2 + e, l.y) * smoothstep(.74, .74 - e, l.y);
+}`;
 const COMMON = `
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
   return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }`;
 
-for (const t of [data.mask]) { t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; }
 const litW = Math.round(Math.min(W * QUALITY, 1600)), litH = Math.round(litW * H / W);
 const litRT = new THREE.WebGLRenderTarget(litW, litH, {
   generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false,
@@ -167,24 +234,31 @@ const litRT = new THREE.WebGLRenderTarget(litW, litH, {
 const lightMat = new THREE.ShaderMaterial({
   vertexShader: VERT,
   uniforms: {
-    tAlb: { value: data.alb }, tLm: { value: data.lm }, tNrm: { value: data.nrm }, tH: { value: data.hgt },
-    tAO: { value: data.ao }, tMask: { value: data.mask },
+    tAlb: { value: data.alb }, tLm: { value: data.lm }, tH: { value: data.hgt },
+    tAO: { value: data.ao }, tMask: { value: maskTex }, ...winUniforms(),
     uHasLm: { value: !!data.lm }, uHasAO: { value: !!data.ao },
-    uImg: { value: new THREE.Vector2(W, H) }, uHRange: { value: hMax - hMin }, uMpp: { value: mpp },
+    uHRange: { value: hMax - hMin },
     uKeyW: { value: new THREE.Vector3() }, uFillW: { value: new THREE.Vector3() },
     uKeyV: { value: new THREE.Vector3() }, uFillV: { value: new THREE.Vector3() },
     uKeyCol: { value: new THREE.Vector3() }, uFillCol: { value: new THREE.Vector3() }, uAmb: { value: new THREE.Vector3() },
-    uShadowStep: { value: new THREE.Vector2() }, uShadowDz: { value: 0 }, uWin: { value: 0 }, uTick: { value: 0 },
+    uShadowStep: { value: new THREE.Vector2() }, uShadowDz: { value: 0 }, uTick: { value: 0 },
   },
   fragmentShader: `
 precision highp float;
 varying vec2 vUv;
-uniform sampler2D tAlb, tLm, tNrm, tH, tAO, tMask;
+uniform sampler2D tAlb, tLm, tH, tAO;
+uniform sampler2D tNrm, tMask, tWinTex;
+uniform bool uHasNrm, uHasWinTex;
+uniform vec2 uImg;
+uniform float uMpp, uWin;
+uniform vec3 uUpV;
+
 uniform bool uHasLm, uHasAO;
-uniform vec2 uImg, uShadowStep;
+uniform vec2 uShadowStep;
 uniform vec3 uKeyW, uFillW, uKeyV, uFillV, uKeyCol, uFillCol, uAmb;
-uniform float uHRange, uMpp, uShadowDz, uWin, uTick;
+uniform float uHRange, uShadowDz, uTick;
 ${COMMON}
+${WIN}
 float Hm(vec2 uv){ return texture(tH, uv).r * uHRange; }
 vec3 aces(vec3 x){ return clamp(x * (2.51 * x + .03) / (x * (2.43 * x + .59) + .14), 0., 1.); }
 void main(){
@@ -207,7 +281,8 @@ void main(){
 
   vec3 lm = vec3(0.); vec3 n = vec3(0., 0., 1.);
   float k, f, wall;
-  if (uHasLm) { lm = texture(tLm, uv).rgb; k = dot(uKeyW, lm); f = dot(uFillW, lm); wall = smoothstep(.08, .3, max(lm.r, lm.b) - lm.g); }
+  if (uHasLm) { lm = texture(tLm, uv).rgb / .8;   // baked on 0.8-grey clay
+    k = dot(uKeyW, lm); f = dot(uFillW, lm); wall = smoothstep(.08, .3, max(lm.r, lm.b) - lm.g); }
   else { n = normalize(texture(tNrm, uv).xyz * 2. - 1.); k = max(dot(n, uKeyV), 0.) * ao; f = max(dot(n, uFillV), 0.); wall = 1. - smoothstep(.35, .65, n.y); }
 
   // soft screen-space shadow: march toward the key light over the heightfield
@@ -225,17 +300,12 @@ void main(){
 
   vec3 col = alb * (uKeyCol * k * sh + uFillCol * f + uAmb * ao);
 
-  // night: random warm windows on building walls (mask + cell noise), slight flicker per tick
+  // night: lamp spill on facades + soft windows (pass B adds the crisp panes); alpha feeds the bloom
   vec3 m = texture(tMask, vUv).rgb;
-  float bld = step(.02, m.r + m.g + m.b);
-  vec2 cell = px * uMpp / vec2(1.4, 2.1);
-  vec2 id = floor(cell) + m.rg * 97.;
-  vec2 l = fract(cell);
-  float pane = smoothstep(.25, .33, l.x) * smoothstep(.75, .67, l.x) * smoothstep(.2, .3, l.y) * smoothstep(.72, .62, l.y);
-  float on = step(hash(id), .36) * (.8 + .2 * hash(id + uTick));
-  float em = pane * on * bld * wall * uWin;
-  col += alb * vec3(1., .6, .3) * bld * uWin * .1;  // lamp spill on facades
-  col += vec3(1., .6, .28) * em * 1.4;
+  float bld = step(.5 / 255., m.r + m.g + m.b) * step(m.r, 249.5 / 255.);
+  col += alb * vec3(1., .6, .3) * bld * facadeAt(uv) * uWin * .08;
+  float em = windowAt(vUv) * uWin;
+  col += vec3(1., .62, .3) * em * .9;
   col = mix(vec3(dot(col, vec3(.2126, .7152, .0722))), col, 1.12);   // a touch more saturated, like painted clay
   col = pow(aces(col * 1.05), vec3(1. / 2.2));
   gl_FragColor = vec4(col, clamp(em, 0., 1.));
@@ -249,9 +319,9 @@ const cssColor = (v) => new THREE.Color(css.getPropertyValue(v).trim());
 const postMat = new THREE.ShaderMaterial({
   vertexShader: VERT,
   uniforms: {
-    tLit: { value: litRT.texture }, tMask: { value: data.mask },
+    tLit: { value: litRT.texture }, tMask: { value: maskTex }, ...winUniforms(),
     uCenter: { value: new THREE.Vector2(.5, .5) }, uSpan: { value: new THREE.Vector2(1, 1) },
-    uScreen: { value: new THREE.Vector2() }, uImg: { value: new THREE.Vector2(W, H) }, uLit: { value: new THREE.Vector2(litW, litH) },
+    uScreen: { value: new THREE.Vector2() }, uLit: { value: new THREE.Vector2(litW, litH) },
     uFocus: { value: .5 }, uDof: { value: 1 }, uTick: { value: 0 }, uTime: { value: 0 }, uSel: { value: -1 },
     uHiCol: { value: Array.from({ length: MAX_HI }, () => new THREE.Vector3()) },
     uHiPos: { value: Array.from({ length: MAX_HI }, () => new THREE.Vector4()) }, uHiN: { value: 0 },
@@ -260,13 +330,20 @@ const postMat = new THREE.ShaderMaterial({
   fragmentShader: `
 precision highp float;
 varying vec2 vUv;
-uniform sampler2D tLit, tMask;
-uniform vec2 uCenter, uSpan, uScreen, uImg, uLit;
+uniform sampler2D tLit;
+uniform sampler2D tNrm, tMask, tWinTex;
+uniform bool uHasNrm, uHasWinTex;
+uniform vec2 uImg;
+uniform float uMpp, uWin;
+uniform vec3 uUpV;
+
+uniform vec2 uCenter, uSpan, uScreen, uLit;
 uniform float uFocus, uDof, uTick, uTime;
 uniform int uSel, uHiN;
 uniform vec3 uHiCol[${MAX_HI}], uAccent, uAccent2, uPaper;
 uniform vec4 uHiPos[${MAX_HI}];   // xy = image uv, z = 0 mask / 1 spot, w = category (0 toerist, 1 samen, -1 filtered out)
 ${COMMON}
+${WIN}
 vec4 lit(vec2 uv, float lod){ return textureLod(tLit, uv, lod); }
 void main(){
   vec2 uv = uCenter + (vUv - .5) * uSpan;
@@ -275,11 +352,13 @@ void main(){
   vec3 bloom = vec3(1., .62, .32) * (lit(uv, base + 2.5).a * .9 + lit(uv, base + 4.5).a * .9);
   // tilt-shift DOF: sharp band around the focus line, blur grows above/below
   float dist = abs(uv.y - uFocus);
-  float lod = base + uDof * 3.6 * smoothstep(.06, .42, dist);
+  float blur = smoothstep(.2, .7, dist);   // wide sharp band, soft falloff
+  float lod = base + uDof * 2.2 * blur;
   vec2 r = exp2(lod) * .8 / uLit;
   vec3 col = lit(uv, lod).rgb * .4 + (lit(uv + vec2(r.x, r.y), lod).rgb + lit(uv - vec2(r.x, r.y), lod).rgb
            + lit(uv + vec2(-r.x, r.y), lod).rgb + lit(uv + vec2(r.x, -r.y), lod).rgb) * .15;
   col += bloom;
+  col = mix(col, vec3(1., .74, .45), windowAt(uv) * uWin * .55 * (1. - blur));   // crisp warm panes in the sharp band
   // light chromatic aberration toward the edges (~1 px)
   vec2 ca = (vUv - .5) * 2.4 / uScreen * uSpan * uScreen / uScreen.y;
   col.r = mix(col.r, lit(uv + ca, lod + .5).r + bloom.r, .65);
@@ -289,6 +368,8 @@ void main(){
   vec2 e = 2. * uSpan / uScreen;
   vec3 m0 = texture(tMask, uv).rgb, m1 = texture(tMask, uv + vec2(e.x, 0)).rgb, m2 = texture(tMask, uv - vec2(e.x, 0)).rgb,
        m3 = texture(tMask, uv + vec2(0, e.y)).rgb, m4 = texture(tMask, uv - vec2(0, e.y)).rgb;
+  vec2 e2 = e * 3.5;   // wider taps for a soft outer halo
+  vec3 h1 = texture(tMask, uv + e2).rgb, h2 = texture(tMask, uv - e2).rgb, h3 = texture(tMask, uv + vec2(e2.x, -e2.y)).rgb, h4 = texture(tMask, uv + vec2(-e2.x, e2.y)).rgb;
   float glow = 0.; vec3 gcol = vec3(0.);
   for (int i = 0; i < ${MAX_HI}; i++) {
     if (i >= uHiN) break;
@@ -298,9 +379,10 @@ void main(){
     float sel = i == uSel ? 1. : 0.;
     vec3 c = uHiCol[i];
     if (uHiPos[i].z < .5) {
-      float in0 = step(distance(m0, c), .02);
-      float edge = in0 * (1. - step(distance(m1, c), .02) * step(distance(m2, c), .02) * step(distance(m3, c), .02) * step(distance(m4, c), .02));
-      g = edge * (.45 + .45 * pulse + .4 * sel) + in0 * (.05 + .05 * pulse + .12 * sel);
+      float in0 = step(distance(m0, c), .002);
+      float edge = in0 * (1. - step(distance(m1, c), .002) * step(distance(m2, c), .002) * step(distance(m3, c), .002) * step(distance(m4, c), .002));
+      float halo = (1. - in0) * .25 * (step(distance(h1, c), .002) + step(distance(h2, c), .002) + step(distance(h3, c), .002) + step(distance(h4, c), .002));
+      g = halo * (.35 + .35 * pulse + .3 * sel) + edge * (.45 + .45 * pulse + .4 * sel) + in0 * (.05 + .05 * pulse + .12 * sel);
     } else {
       float d = length((uv - uHiPos[i].xy) / uSpan * uScreen);
       float rr = 15. + 4. * pulse;
@@ -320,7 +402,7 @@ void main(){
 });
 const postScene = quad(postMat);
 highlights.forEach((h, i) => {
-  if (h.kind === 'mask') postMat.uniforms.uHiCol.value[i].set(...h.rgb.map((c) => c / 255));
+  if (h.kind === 'mask') postMat.uniforms.uHiCol.value[i].set(...keyRGB(h.key).map((c) => c / 255));
   if (h.px) postMat.uniforms.uHiPos.value[i].set(h.px[0] / W, 1 - h.px[1] / H, h.kind === 'mask' ? 0 : 1, 0);
 });
 // categories: subtle colour difference + filter chips
@@ -352,6 +434,7 @@ const view = { cx: .5, cy: .5, s: 1, tcx: .5, tcy: .5, ts: 1, focus: .55, tfocus
   if (ys.length) view.focus = view.tfocus = 1 - ys.reduce((a, y) => a + y, 0) / ys.length / H;
 }
 let sw = 1, sh = 1;
+if (highlights[0]) { view.cx = view.tcx = highlights[0].px[0] / W; view.cy = view.tcy = 1 - highlights[0].px[1] / H; }   // start on the first place (matters on narrow screens)
 function span(s) {
   const ia = W / H, sa = sw / sh;   // "cover" fit
   return sa > ia ? [1 / s, ia / sa / s] : [sa / ia / s, 1 / s];
@@ -374,10 +457,22 @@ const screenToImg = (x, y) => {
 
 // ---------- UI: time ----------
 const slider = $('slider');
-slider.value = Q.get('t') ?? 2;
+// default: follow the real time in Bergen (unless ?t= is given or the slider is touched)
+function bergenT() {
+  const [h, m] = new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Oslo', hour12: false }).split(':').map(Number);
+  const c = h + m / 60;
+  if (c < 6) return 4;
+  if (c < 8) return 0;
+  for (let i = 0; i < PHASES.length - 1; i++) if (c <= PHASES[i + 1].clock) return i + (c - PHASES[i].clock) / (PHASES[i + 1].clock - PHASES[i].clock);
+  return 4;
+}
+let touched = Q.has('t');
+slider.value = Q.get('t') ?? bergenT();
+slider.addEventListener('input', () => { touched = true; });
+setInterval(() => { if (!touched) { slider.value = bergenT(); updateLabel(); } }, 60000);
 PHASES.forEach((p, i) => {
   const b = Object.assign(document.createElement('button'), { textContent: p.name });
-  b.onclick = () => { slider.value = i; updateLabel(); };
+  b.onclick = () => { touched = true; slider.value = i; updateLabel(); };
   $('stops').append(b);
 });
 function updateLabel() {
@@ -440,11 +535,11 @@ function pick(x, y) {
   const ix = u * W, iy = (1 - v) * H;
   const tapR = 30 * (span(view.s)[0] * W / sw);       // ~30 screen px in image px
   let hit = highlights.findIndex((h) => visible(h) && h.kind === 'pixel' && h.inImg && Math.hypot(h.px[0] - ix, h.px[1] - iy) < tapR);
-  const rgb = maskAt(ix, iy);
-  if (hit < 0) hit = highlights.findIndex((h) => visible(h) && h.kind === 'mask' && sameRGB(h.rgb, rgb));
+  const key = maskAt(ix, iy);
+  if (hit < 0 && key) hit = highlights.findIndex((h) => visible(h) && h.kind === 'mask' && h.key === key);
   if (hit >= 0) return openCard(highlights[hit], hit);
-  const b = rgb.some((c) => c > 4) && buildings.find((x) => sameRGB(x.rgb, rgb));
-  if (b?.name) return openCard({ titel: b.name, tekst: b.osm_id ? `OpenStreetMap-gebouw ${b.osm_id}.` : '', px: [ix, iy] }, -1);
+  const b = key && buildings.find((x) => x.key === key);
+  if (b?.name) return openCard({ titel: b.name.split(';')[0], tekst: '', px: [ix, iy] }, -1);
   closeCard();
 }
 
@@ -480,53 +575,9 @@ function updateLight(tick) {
   // screen-space shadow step: uv per metre travelled toward the key light, plus metres of height gained
   lu.uShadowStep.value.set(key.x / mpp / W, key.dot(camUp) / mpp / H);
   lu.uShadowDz.value = key.z;
-  lu.uWin.value = ph.win;
+  lu.uWin.value = postMat.uniforms.uWin.value = ph.win;
   lu.uTick.value = tick;
 }
-// edge arrows for highlights outside the visible part of the image (or outside the diorama altogether)
-const arrows = highlights.map((h, i) => {
-  const el = Object.assign(document.createElement('button'), { className: `arrow ${catOf(h)}`, hidden: true });
-  el.innerHTML = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 10 L6 2 L10 10 Z"/></svg><span></span>';
-  el.lastChild.textContent = h.titel;
-  el.onclick = () => openCard(h, i);
-  $('arrows').append(el);
-  return el;
-});
-function placeArrows(ax, ay) {
-  const open = selected >= 0 || $('card').classList.contains('open');
-  const top = $('title').getBoundingClientRect().bottom + 10, bottom = sh - ($('time').offsetHeight + 28), left = 16, right = sw - 16;
-  const shown = [];
-  highlights.forEach((h, i) => {
-    const x = ((h.px[0] / W - view.cx) / ax + .5) * sw, y = (.5 - (1 - h.px[1] / H - view.cy) / ay) * sh;
-    const el = arrows[i];
-    el.hidden = open || !visible(h) || (x > left && x < right && y > top && y < bottom);
-    if (el.hidden) return;
-    const mx = sw / 2, my = (top + bottom) / 2, dx = x - mx, dy = y - my;
-    const tx = (dx > 0 ? right - mx : left - mx) / dx, ty = (dy > 0 ? bottom - my : top - my) / dy;
-    const t = Math.min(isFinite(tx) ? tx : Infinity, isFinite(ty) ? ty : Infinity);
-    const w = el.offsetWidth, hh = el.offsetHeight;
-    const edge = tx < ty ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'bottom' : 'top');
-    shown.push({ el, w, hh, edge, ang: Math.atan2(dy, dx) * 180 / Math.PI + 90,
-      x: THREE.MathUtils.clamp(mx + dx * t - w / 2, left, right - w), y: THREE.MathUtils.clamp(my + dy * t - hh / 2, top, bottom - hh) });
-  });
-  // keep labels on the same edge from overlapping: spread along that edge
-  for (const edge of ['top', 'bottom', 'left', 'right']) {
-    const row = shown.filter((a) => a.edge === edge), horiz = edge === 'top' || edge === 'bottom';
-    row.sort((a, b) => horiz ? a.x - b.x : a.y - b.y);
-    for (let k = 1; k < row.length; k++) {
-      if (horiz) row[k].x = Math.max(row[k].x, row[k - 1].x + row[k - 1].w + 6);
-      else row[k].y = Math.max(row[k].y, row[k - 1].y + row[k - 1].hh + 6);
-    }
-    const last = row[row.length - 1];   // shift the row back if it ran off the end
-    const over = last ? (horiz ? last.x + last.w - right : last.y + last.hh - bottom) : 0;
-    if (over > 0) row.forEach((a) => { if (horiz) a.x = Math.max(left, a.x - over); else a.y = Math.max(top, a.y - over); });
-  }
-  for (const a of shown) {
-    a.el.style.transform = `translate(${a.x}px, ${a.y}px)`;
-    a.el.firstChild.style.transform = `rotate(${a.ang}deg)`;
-  }
-}
-
 let lastTick = -1;
 const pu = postMat.uniforms;
 function frame(now) {
@@ -548,7 +599,6 @@ function frame(now) {
   pu.uCenter.value.set(view.cx, view.cy); pu.uSpan.value.set(ax, ay);
   pu.uFocus.value = view.focus; pu.uTime.value = now / 1000; pu.uSel.value = selected;
   renderer.render(postScene, quadCam);
-  placeArrows(ax, ay);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

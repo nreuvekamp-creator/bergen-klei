@@ -1,5 +1,14 @@
 {
  "synthetic": true,
+ "passes": {
+  "albedo.png": "zie make_testdata.py",
+  "normal.png": "zie make_testdata.py",
+  "height.png": "zie make_testdata.py",
+  "ao.png": "zie make_testdata.py",
+  "mask.png": "zie make_testdata.py",
+  "lightmap.png": "zie make_testdata.py",
+  "beauty.png": "zie make_testdata.py"
+ },
  "resolution": [
   1280,
   800
