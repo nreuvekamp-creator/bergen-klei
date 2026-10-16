@@ -1,0 +1,105 @@
+{
+  "_uitleg": "Eén item per plek. Koppeling: 'plek' (sleutel of naam van een plek in meta.json: landmarks/plekken/offscreen), anders 'lat'/'lon' (omgerekend via de plekken in meta.json). Alleen plekken die in de render liggen worden getoond. 'categorie': toerist of samen. 'weer' (regen/zon) komt als tekst in het kaartje. 'foto' (url) is optioneel.",
+  "items": [
+    {
+      "titel": "Bryggen bezoeken",
+      "tekst": "De houten Hanze-kade, UNESCO-werelderfgoed. Rondwandelen is gratis en sfeervol, ook met een paraplu.",
+      "weer": "regen",
+      "kosten": "gratis",
+      "plek": "bryggen",
+      "lat": 60.3975,
+      "lon": 5.3245,
+      "categorie": "toerist"
+    },
+    {
+      "titel": "Vismarkt, klassiek visbrød",
+      "tekst": "Overdekte hal bij Torget, prima bij regen. Het klassieke broodje vis is hier de beste keuze.",
+      "weer": "regen",
+      "kosten": "ca. kr 140",
+      "plek": "fisketorget",
+      "lat": 60.3948,
+      "lon": 5.3248,
+      "categorie": "toerist"
+    },
+    {
+      "titel": "Vågal",
+      "tekst": "Kong Oscars gate 10. Knus, veel loungebanken, koffie en matcha een 7/10.",
+      "weer": "regen",
+      "kosten": "",
+      "plek": "vagal",
+      "lat": 60.3955,
+      "lon": 5.3268,
+      "categorie": "samen"
+    },
+    {
+      "titel": "Hotdog eten",
+      "tekst": "Rond Torget en Fisketorget. De klassieke 99-kroner toeristenversie: een tourist trap, maar eentje die je een keer moet proberen.",
+      "weer": "regen",
+      "kosten": "kr 99",
+      "plek": "hotdog",
+      "lat": 60.3946,
+      "lon": 5.3256,
+      "categorie": "toerist"
+    },
+    {
+      "titel": "Sandviksbatteriet",
+      "tekst": "Oude kustbatterij boven Sandviken, met uitzicht over de haven. Mooi bij droog weer.",
+      "weer": "zon",
+      "kosten": "gratis",
+      "lat": 60.4105,
+      "lon": 5.32,
+      "categorie": "toerist",
+      "plek": "sandviksbatteriet"
+    },
+    {
+      "titel": "Café Klee",
+      "tekst": "Herman Foss gate 12. Favoriet tot nu toe.",
+      "weer": "regen",
+      "kosten": "",
+      "lat": 60.3885,
+      "lon": 5.324,
+      "categorie": "samen",
+      "plek": "klee"
+    },
+    {
+      "titel": "Floating sauna Heit",
+      "tekst": "Drijvende sauna bij Marineholmen: warm zitten, koud plonzen.",
+      "weer": "zon",
+      "kosten": "",
+      "lat": 60.3825,
+      "lon": 5.3225,
+      "categorie": "samen",
+      "plek": "heit"
+    },
+    {
+      "titel": "Bordspelavond",
+      "tekst": "Woensdag 21 oktober in Nordnes Bydelshus. Spelletjes, thee en nieuwe mensen.",
+      "weer": "regen",
+      "kosten": "",
+      "lat": 60.399,
+      "lon": 5.311,
+      "categorie": "samen",
+      "plek": "nordnes_bydelshus"
+    },
+    {
+      "titel": "Ulriken",
+      "tekst": "Bergens hoogste van de zeven bergen, met de kabelbaan of te voet.",
+      "weer": "zon",
+      "kosten": "",
+      "plek": "ulriken_top",
+      "lat": 60.3779,
+      "lon": 5.3866,
+      "categorie": "toerist"
+    },
+    {
+      "titel": "Løvstien",
+      "tekst": "Pad hoog langs Løvstakken, met de hele Ulriken tegenover je.",
+      "weer": "zon",
+      "kosten": "gratis",
+      "plek": "lovstien",
+      "lat": 60.3725,
+      "lon": 5.333,
+      "categorie": "samen"
+    }
+  ]
+}

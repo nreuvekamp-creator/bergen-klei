@@ -1,0 +1,350 @@
+{
+ "generator": "bergen-klei/blender/scripts/render.py",
+ "blender": "5.0.1",
+ "resolution": [
+  2560,
+  1440
+ ],
+ "render_seconds": {
+  "passes": 143.1,
+  "lightmap_R": 141.9,
+  "lightmap_G": 172.1,
+  "lightmap_B": 173.0,
+  "beauty": 213.5
+ },
+ "world": {
+  "units": "meter",
+  "crs": "EPSG:25832 (UTM 32N) minus origin",
+  "origin": {
+   "lat": 60.39675,
+   "lon": 5.3235,
+   "utm32_e": 297464.89067198616,
+   "utm32_n": 6701250.388389563,
+   "crs": "EPSG:25832 (UTM 32N) minus origin"
+  },
+  "z": "meter boven zeeniveau (water z=0); terrein is VZ keer overdreven, gebouwen staan erop met echte hoogte",
+  "VZ": 1.5,
+  "tile": {
+   "center": [
+    130.0,
+    15.0
+   ],
+   "half_u": 350.0,
+   "half_v": 270.0,
+   "right": [
+    0.7071067690849304,
+    -0.7071067690849304
+   ],
+   "forward": [
+    0.7071067690849304,
+    0.7071067690849304
+   ],
+   "table_z": -24.0
+  }
+ },
+ "camera": {
+  "type": "PERSP",
+  "lens_mm": 120.0,
+  "sensor_width_mm": 36.0,
+  "fov_x_deg": 17.06153250893588,
+  "fov_y_deg": 9.64581684908872,
+  "position": [
+   -1485.9024658203125,
+   -1600.9024658203125,
+   1815.4183349609375
+  ],
+  "target": [
+   130.0,
+   15.0,
+   30.0
+  ],
+  "pitch_down_deg": 38.0,
+  "view_bearing_deg": 45.0,
+  "matrix_world": [
+   [
+    0.7071067094802856,
+    0.4353385269641876,
+    -0.5572077631950378,
+    -1485.9024658203125
+   ],
+   [
+    -0.7071068286895752,
+    0.4353383779525757,
+    -0.5572077035903931,
+    -1600.9024658203125
+   ],
+   [
+    -5.985359763371889e-08,
+    0.7880107164382935,
+    0.6156615614891052,
+    1815.4183349609375
+   ],
+   [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  ],
+  "projection": [
+   [
+    6.666666507720947,
+    0.0,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    11.851851463317871,
+    0.0,
+    0.0
+   ],
+   [
+    0.0,
+    0.0,
+    -1.0100502967834473,
+    -100.50251007080078
+   ],
+   [
+    0.0,
+    0.0,
+    -1.0,
+    0.0
+   ]
+  ],
+  "clip": [
+   50.0,
+   10000.0
+  ]
+ },
+ "passes": {
+  "albedo.png": "onbelichte basiskleur, 8-bit sRGB",
+  "lightmap.png": "8-bit sRGB-gecodeerd (lineair = sRGB-decode). R/G/B = belichting van light_dirs R/G/B op 0.8-grijze klei, AO erin",
+  "windows.png": "wit = raamvlakje",
+  "scene.glb": "low-poly proxy, Blender Z-up (export_yup=False), Draco; terrein-uv -> ground_top.png",
+  "ground_top.png": "grondkleur recht van boven, via de terrein-uv in scene.glb"
+ },
+ "height_min": -24.0,
+ "height_max": 161.21099853515625,
+ "depth_min": 2694.7333984375,
+ "depth_max": 3349.15234375,
+ "light_dirs": {
+  "R": {
+   "world": [
+    0.5792,
+    -0.5792,
+    0.5736
+   ],
+   "camera": [
+    0.8192,
+    0.452,
+    0.3531
+   ],
+   "meaning": "van rechts (camera), 35 graden omhoog"
+  },
+  "G": {
+   "world": [
+    0.0,
+    0.0,
+    1.0
+   ],
+   "camera": [
+    -0.0,
+    0.788,
+    0.6157
+   ],
+   "meaning": "van boven (zenit)"
+  },
+  "B": {
+   "world": [
+    -0.5792,
+    -0.5792,
+    0.5736
+   ],
+   "camera": [
+    0.0,
+    -0.0523,
+    0.9986
+   ],
+   "meaning": "van voren (vanaf de camera), 35 graden omhoog"
+  }
+ },
+ "lightmap_note": "Richtingen zijn niet orthogonaal: voor een zon s los w op uit [R G B] * w = s (3x3, kolommen = light_dirs.world), clamp w >= 0.",
+ "landmarks": {
+  "bryggen": {
+   "name": "Bryggen-houthuizen",
+   "x": 33.55872195233266,
+   "y": 94.17584293360521,
+   "z": 8.492367267608643,
+   "lat": 60.397610304635556,
+   "lon": 5.324012430402103,
+   "building_id": null,
+   "z_render": 12.738550901412964,
+   "pixel": {
+    "x": 914.7,
+    "y": 782.1,
+    "in_view": true
+   }
+  },
+  "fisketorget": {
+   "name": "Fisketorget / Torget",
+   "x": -1.6273460803204216,
+   "y": -236.42066132929176,
+   "z": 7.495171785354614,
+   "lat": 60.39463046830311,
+   "lon": 5.323709719797474,
+   "building_id": 2112,
+   "z_render": 11.242757678031921,
+   "pixel": {
+    "x": 1547.9,
+    "y": 1294.1,
+    "in_view": true
+   }
+  },
+  "floibanen": {
+   "name": "Fløibanen dalstation, Vetrlidsallmenningen 21",
+   "x": 279.0841536614462,
+   "y": -72.38728146068752,
+   "z": 18.262483596801758,
+   "lat": 60.396240767267194,
+   "lon": 5.328627080274599,
+   "building_id": 602,
+   "z_render": 27.393725395202637,
+   "pixel": {
+    "x": 1766.0,
+    "y": 647.9,
+    "in_view": true
+   }
+  },
+  "vagal": {
+   "name": "Vågal café, Kong Oscars gate 10",
+   "x": 229.08991370513104,
+   "y": -168.40050136856735,
+   "z": 10.90250301361084,
+   "lat": 60.39535543960604,
+   "lon": 5.327818887012066,
+   "building_id": 652,
+   "z_render": 16.35375452041626,
+   "pixel": {
+    "x": 1875.7,
+    "y": 861.5,
+    "in_view": true
+   }
+  },
+  "bryggens_museum": {
+   "name": "Bryggens Museum",
+   "x": -28.107906827732272,
+   "y": 183.70039263343034,
+   "z": 9.291014671325684,
+   "lat": 60.39838159602041,
+   "lon": 5.32280515836632,
+   "building_id": 163,
+   "z_render": 13.936522006988525,
+   "pixel": {
+    "x": 603.7,
+    "y": 743.5,
+    "in_view": true
+   }
+  },
+  "mariakirken": {
+   "name": "Mariakirken",
+   "x": 9.40074166089322,
+   "y": 238.87916041459735,
+   "z": 13.39118242263794,
+   "lat": 60.3988947872149,
+   "lon": 5.323428566116106,
+   "building_id": 727,
+   "z_render": 20.08677363395691,
+   "pixel": {
+    "x": 578.6,
+    "y": 613.0,
+    "in_view": true
+   }
+  }
+ },
+ "offscreen": {
+  "sandviken": {
+   "name": "Sandviksbatteriet",
+   "lat": 60.409,
+   "lon": 5.318,
+   "x": -226.51551756542176,
+   "y": 1379.8222531992942,
+   "pixel": {
+    "x": -1704.4,
+    "y": -298.3,
+    "in_view": false
+   },
+   "screen_angle_deg": 161.2
+  },
+  "klee": {
+   "name": "Café Klee, Herman Foss gate 12",
+   "lat": 60.383,
+   "lon": 5.32,
+   "x": -278.21729892340954,
+   "y": -1519.0095180990174,
+   "pixel": {
+    "x": 4979.4,
+    "y": 4759.2,
+    "in_view": false
+   },
+   "screen_angle_deg": 312.5
+  },
+  "heit": {
+   "name": "Heit sauna Marineholmen",
+   "lat": 60.381,
+   "lon": 5.329,
+   "x": 205.0344560382655,
+   "y": -1769.2041358565912,
+   "pixel": {
+    "x": 6986.0,
+    "y": 4052.0,
+    "in_view": false
+   },
+   "screen_angle_deg": 329.7
+  },
+  "nordnes": {
+   "name": "Nordnes Bydelshus",
+   "lat": 60.398,
+   "lon": 5.307,
+   "x": -900.5217638690956,
+   "y": 189.93034582585096,
+   "pixel": {
+    "x": -1698.9,
+    "y": 2104.3,
+    "in_view": false
+   },
+   "screen_angle_deg": 204.9
+  }
+ },
+ "mask_special": {
+  "0": "tafel/achtergrond",
+  "32001": "terrein",
+  "32002": "water",
+  "32003": "bomen",
+  "32004": "sokkel"
+ },
+ "sets": {
+  "hi": [
+   2560,
+   1440
+  ],
+  "lo": [
+   1920,
+   1080
+  ]
+ },
+ "tiles": {
+  "template": "tiles/{pass}/{z}/{x}_{y}.webp",
+  "passes": [
+   "albedo",
+   "lightmap"
+  ],
+  "max_z": 3,
+  "tile_size": [
+   1024,
+   576
+  ],
+  "grid": "2^z x 2^z tegels; x = kolom van links, y = rij van boven; zelfde camera als hi/",
+  "lightmap": "8-bit sRGB zoals lightmap.png"
+ }
+}
