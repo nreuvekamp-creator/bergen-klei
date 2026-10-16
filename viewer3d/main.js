@@ -305,78 +305,117 @@ table.material = new THREE.ShaderMaterial({ uniforms: { ...U, uKind: { value: KI
 // meta.tiles: template 'tiles/{pass}/{z}/{x}_{y}.webp' (or passes: {albedo: template, lightmap: template}), max_z, tile_size [w, h];
 // level z = 2^z x 2^z tiles of the same render camera, x = column from the left, y = row from the top.
 const TL = meta.tiles || (Q.has('tiles') ? meta.tiles_test : null);   // no 'tiles' in meta = no deep zoom (testdata: ?tiles=1)
-const ATLAS = Math.min(small ? 2048 : 4096, renderer.capabilities.maxTextureSize);
+const ATLAS = Math.min(small ? 3072 : 4096, renderer.capabilities.maxTextureSize);   // ponytail: 2 atlases of 3072² ≈ 100 MB GPU on phones; drop to 2048 if old iPhones crash
 const deep = TL ? (() => {
   const passList = (Array.isArray(TL.passes) ? TL.passes : Object.keys(TL.passes || { albedo: 1, lightmap: 1 })).filter((p) => p === 'albedo' || p === 'lightmap');
-  const tpl = (pass) => (TL.passes && !Array.isArray(TL.passes) && typeof TL.passes[pass] === 'string') ? TL.passes[pass]
-    : TL.template || TL.url || TL.pattern || 'tiles/{pass}/{z}/{x}_{y}.png';   // default = centrum/scripts/render.py naming
+  // template: meta.tiles.template / path ('tiles/{pass}/{z}/{x}_{y}.png (+ .webp)': the first word counts)
+  const tpl = (pass) => ((TL.passes && !Array.isArray(TL.passes) && typeof TL.passes[pass] === 'string') ? TL.passes[pass]
+    : TL.template || TL.path || TL.url || 'tiles/{pass}/{z}/{x}_{y}.png').split(' ')[0];
   const url = (pass, z, x, y) => `${data.base}/${tpl(pass).replace('{pass}', pass).replace('{z}', z).replace('{x}', x).replace('{y}', y)}`;
-  const baseW = meta.sets?.hi?.[0] || IW;
   const ts = TL.tile_size || TL.size || [2560, 1440];
   const [TW, TH] = Array.isArray(ts) ? ts : [ts, Math.round(ts * IH / IW)];
-  const lv = TL.max_z ?? TL.z_max ?? TL.levels ?? TL.zooms ?? 0;
+  const lv = TL.max_z ?? TL.z_max ?? TL.levels ?? 0;
   const maxZ = Array.isArray(lv) ? Math.max(...lv.map((l) => +(l.z ?? l))) : +lv;
+  // which tiles exist: complete_levels have all, partial_levels list "x_y"; without that info every tile is assumed present
+  const avail = (z, x, y) => {
+    if (!TL.complete_levels && !TL.partial_levels) return true;
+    return (TL.complete_levels || []).includes(z) || !!TL.partial_levels?.[z]?.includes(`${x}_${y}`);
+  };
+  const hiW = small ? 0 : meta.resolution?.hi?.[0] || meta.sets?.hi?.[0] || 0;   // desktop swaps in hi soon: tiles must beat that
+  const best = (z, x, y) => { for (let k = 0; z - k >= 1; k++) if (avail(z - k, x >> k, y >> k)) return z - k; return 0; };   // missing tile: fall back to its parent
   const layers = {};
   for (const pass of passList) {
     const cv = Object.assign(document.createElement('canvas'), { width: ATLAS, height: ATLAS });
     const t = new THREE.CanvasTexture(cv);
-    t.colorSpace = pass === 'albedo' || /srgb/i.test(TL.lightmap || meta.passes?.['lightmap.png'] || '') ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    t.colorSpace = pass === 'albedo' || /srgb/i.test(meta.passes?.[Object.keys(meta.passes || {}).find((k) => k.startsWith('lightmap.'))] || '') ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4;
-    layers[pass] = { cv, ctx: cv.getContext('2d'), t };
+    layers[pass] = { ctx: cv.getContext('2d'), t };
   }
-  const cache = new Map(), loading = new Set(), failed = new Set(), LRU = small ? 24 : 64;
-  let cur = null, dirty = false, lastUp = 0;
-  const inCur = (z, x, y) => cur && cur.z === z && x >= cur.x0 && y >= cur.y0 && x < cur.x0 + cur.rc && y < cur.y0 + cur.rr;
-  const draw = (pass, x, y, bmp) => { layers[pass].ctx.drawImage(bmp, (x - cur.x0) * TW, (y - cur.y0) * TH, TW, TH); dirty = true; };
-  function get(pass, z, x, y) {
+  const cache = new Map(), loading = new Set(), failed = new Set(), LRU = small ? 16 : 40;
+  let cur = null, dirty = false, lastUp = 0, lastUv = null;
+  function fetchTile(pass, z, x, y) {
     const k = `${pass}/${z}/${x}_${y}`;
-    if (cache.has(k)) { const b = cache.get(k); cache.delete(k); cache.set(k, b); return draw(pass, x, y, b); }
-    if (loading.has(k) || failed.has(k)) return;
+    if (cache.has(k) || loading.has(k) || failed.has(k)) return;
     loading.add(k);
     fetch(url(pass, z, x, y)).then((r) => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(createImageBitmap).then((b) => {
       cache.set(k, b);
       while (cache.size > LRU) { const [ok, ob] = cache.entries().next().value; cache.delete(ok); ob.close?.(); }
-      if (inCur(z, x, y)) draw(pass, x, y, b);
+      redraw();
     }).catch(() => failed.add(k)).finally(() => loading.delete(k));
   }
+  // paint every slot with the sharpest tile that is loaded (an ancestor, cropped, until the real one arrives)
+  function redraw() {
+    if (!cur) return;
+    const { z, x0, y0, rc, rr, sw: W, sh: H } = cur;
+    for (const pass of passList) {
+      const ctx = layers[pass].ctx;
+      ctx.clearRect(0, 0, ATLAS, ATLAS);
+      for (let y = y0; y < y0 + rr; y++) for (let x = x0; x < x0 + rc; x++) {
+        const zb = best(z, x, y);
+        if (!zb) continue;
+        fetchTile(pass, zb, x >> (z - zb), y >> (z - zb));
+        for (let zz = zb; zz >= 1; zz--) {
+          const k = z - zz, key = `${pass}/${zz}/${x >> k}_${y >> k}`, b = cache.get(key);
+          if (!b || !avail(zz, x >> k, y >> k)) continue;
+          cache.delete(key); cache.set(key, b);   // LRU touch
+          const f = 2 ** k, fx = x - (x >> k << k), fy = y - (y >> k << k);
+          ctx.drawImage(b, fx / f * b.width, fy / f * b.height, b.width / f, b.height / f, (x - x0) * W, (y - y0) * H, W, H);
+          break;
+        }
+      }
+    }
+    dirty = true;
+  }
+  const uvRT = new THREE.WebGLRenderTarget(32, 20), uvPx = new Uint8Array(32 * 20 * 4);
+  const uvMat = new THREE.ShaderMaterial({ uniforms: { uProj: U.uProj }, side: THREE.DoubleSide,
+    vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: 'uniform mat4 uProj; varying vec3 vW; void main(){ vec4 p = uProj * vec4(vW, 1.); gl_FragColor = vec4(clamp(p.xy / p.w * .5 + .5, 0., 1.), 1., 1.); }' });
   function update() {
     let u0 = 1, v0 = 1, u1 = 0, v1 = 0;
-    for (const hz of [C.p.z - 20, C.p.z + 80]) for (let i = 0; i <= 4; i++) for (let j = 0; j <= 4; j++) {
-      const h = hitPlane(i / 4 * sw, j / 4 * sh, camera, hz);
-      if (!h) continue;
-      const [u, v] = toProjUv(h);
+    // what the screen really shows, in render-image uv: a tiny uv render of the scene (mountains, roofs and all)
+    const cv = clouds.visible;
+    world.overrideMaterial = uvMat; clouds.visible = false;
+    renderer.setRenderTarget(uvRT); renderer.render(world, camera); renderer.setRenderTarget(null);
+    world.overrideMaterial = null; clouds.visible = cv;
+    renderer.readRenderTargetPixels(uvRT, 0, 0, 32, 20, uvPx);
+    for (let i = 0; i < uvPx.length; i += 4) {
+      if (uvPx[i + 2] < 128) continue;
+      const u = uvPx[i] / 255, v = uvPx[i + 1] / 255;
       u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
     }
-    u0 = Math.max(0, u0); v0 = Math.max(0, v0); u1 = Math.min(1, u1); v1 = Math.min(.9999, v1); u1 = Math.min(u1, .9999);
-    const need = sw * DPR / Math.max(u1 - u0, 1e-3);
-    let z = 1;
-    while (z < maxZ && TW * 2 ** z < need * .9) z++;
+    if (u1 < u0) return;
+    lastUv = [u0, v0, u1, v1];
+    u0 = Math.max(0, u0 - .01); v0 = Math.max(0, v0 - .01); u1 = Math.min(.9999, u1 + .01); v1 = Math.min(.9999, v1 + .01);
+    const need = sw * DPR / Math.max(u1 - u0, 1e-3);   // image px across the whole render that the screen can show
     let reg = null;
-    for (; z >= 1 && TW * 2 ** z > IW * 1.05; z--) {
+    for (let z = 1; z <= maxZ; z++) {
       const n = 2 ** z, x0 = Math.floor(u0 * n), y0 = Math.floor((1 - v1) * n);
       const rc = Math.min(n - 1, Math.floor(u1 * n)) - x0 + 1, rr = Math.min(n - 1, Math.floor((1 - v0) * n)) - y0 + 1;
-      if (rc > 0 && rr > 0 && rc * TW <= ATLAS && rr * TH <= ATLAS) { reg = { z, n, x0, y0, rc, rr }; break; }
+      if (rc < 1 || rr < 1) continue;
+      const W = Math.min(TW, Math.floor(ATLAS / rc), Math.floor(ATLAS / rr * TW / TH)), H = Math.floor(W * TH / TW);   // tiles shrink to fit the atlas
+      let any = false;
+      for (let y = y0; y < y0 + rr && !any; y++) for (let x = x0; x < x0 + rc && !any; x++) any = avail(z, x, y);
+      if (!any || W * n <= Math.max(Math.max(IW, hiW) * 1.05, (reg?.W || 0) * (reg?.n || 0) * 1.05)) continue;   // nothing sharper here
+      reg = { z, n, x0, y0, rc, rr, W, H, sw: W, sh: H };
+      if (W * n >= need * 1.25) break;   // a bit of oversampling: prefer the deeper level
     }
-    const key = reg && `${reg.z}/${reg.x0}/${reg.y0}/${reg.rc}/${reg.rr}`;
+    const key = reg && `${reg.z}/${reg.x0}/${reg.y0}/${reg.rc}/${reg.rr}/${reg.W}`;
     if (key !== cur?.key) {
       cur = reg && { ...reg, key };
-      for (const l of Object.values(layers)) l.ctx.clearRect(0, 0, ATLAS, ATLAS);
-      dirty = true;
       U.uDOn.value = !!cur;
       if (cur) {
         U.uDRect.value.set(cur.x0 / cur.n, 1 - (cur.y0 + cur.rr) / cur.n, (cur.x0 + cur.rc) / cur.n, 1 - cur.y0 / cur.n);
-        U.uDUse.value.set(cur.rc * TW / ATLAS, cur.rr * TH / ATLAS);
+        U.uDUse.value.set(cur.rc * cur.W / ATLAS, cur.rr * cur.H / ATLAS);
+        redraw();
       }
     }
-    if (cur) for (let y = cur.y0; y < cur.y0 + cur.rr; y++) for (let x = cur.x0; x < cur.x0 + cur.rc; x++)
-      for (const pass of passList) { if (!inCur(cur.z, x, y)) continue; const k = `${pass}/${cur.z}/${x}_${y}`; if (!cache.has(k)) get(pass, cur.z, x, y); }
   }
   function upload(now) {   // re-upload the atlas at most every 150 ms while tiles arrive
     if (!dirty || now - lastUp < 150) return;
     dirty = false; lastUp = now;
     for (const l of Object.values(layers)) l.t.needsUpdate = true;
   }
-  return { layers, update, upload, state: () => cur && { z: cur.z, x0: cur.x0, y0: cur.y0, rc: cur.rc, rr: cur.rr, cached: cache.size } };
+  return { layers, update, upload, state: () => cur && { z: cur.z, x0: cur.x0, y0: cur.y0, rc: cur.rc, rr: cur.rr, slot: cur.W, cached: cache.size, failed: failed.size, uv: lastUv?.map((v) => +v.toFixed(3)) } };
 })() : null;
 U.tAlbD.value = deep?.layers.albedo?.t || null; U.tLmD.value = deep?.layers.lightmap?.t || null;
 
@@ -735,6 +774,7 @@ else fetch('https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=60.39
 // ---------- UI: card ----------
 let selected = -1;
 function openCard(h, i) {
+  deepArmed = true;
   selected = i;
   $('card-title').textContent = h.titel || 'Plek';
   $('card-text').textContent = h.tekst || '';
@@ -923,6 +963,8 @@ function updateLight(tick) {
   placeClouds(tick, r);
 }
 let lastTick = -1, lastDeep = 0;
+let deepArmed = false;   // tiles only after the first interaction: keeps the first load small
+for (const ev of ['pointerdown', 'wheel', 'keydown']) addEventListener(ev, () => { deepArmed = true; }, { once: true, passive: true });
 function frame(now) {
   const tick = Math.floor(now / 1000 * FPS);
   if (tick !== lastTick) { lastTick = tick; updateLight(tick); pu.uTick.value = tick % 997; }
@@ -935,7 +977,7 @@ function frame(now) {
   const k = .16;
   C.yaw += (T.yaw - C.yaw) * k; C.pitch += (T.pitch - C.pitch) * k; C.zoom += (T.zoom - C.zoom) * k; C.p.lerp(T.p, k);
   pose(C, camera);
-  if (deep) { if (now - lastDeep > 300) { lastDeep = now; deep.update(); } deep.upload(now); }
+  if (deep && deepArmed) { if (now - lastDeep > 300) { lastDeep = now; deep.update(); } deep.upload(now); }
   layoutPins();
   pu.uFocus.value = C.p.clone().project(camera).y * .5 + .5;
   pu.uTime.value = now / 1000;
