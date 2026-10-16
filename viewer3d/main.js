@@ -532,7 +532,7 @@ const camera = new THREE.PerspectiveCamera(30, 1, 10, 20000);
 camera.up.set(0, 0, 1);
 const fwd0 = target0.clone().sub(projCam.position);
 const bearing0 = Math.atan2(fwd0.x, fwd0.y) / deg, pitch0 = Math.asin(-fwd0.z / dist0) / deg;
-const LIM = { yaw: [-12, 12], pitch: [-5, 15], zoom: [1, (small ? 4 : 2) * (deep ? 2 : 1)] };   // tile pyramid: twice as deep
+const LIM = { yaw: [-12, 12], pitch: [-5, 15], zoom: [1, deep ? 8 : small ? 4 : 2] };   // tile pyramid: zoom as deep as z3   // tile pyramid: twice as deep
 const T = { p: target0.clone(), yaw: 0, pitch: 0, zoom: 1 };      // target state
 const C = { p: target0.clone(), yaw: 0, pitch: 0, zoom: 1 };      // eased state
 let sw = 1, sh = 1, cover = [tanX, tanY], liftNdc = 0;
