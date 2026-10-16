@@ -68,6 +68,14 @@
   #card-nav svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
   #count { color: var(--ink-soft); font-size: 12.5px; font-variant-numeric: tabular-nums; }
   #card-meta { margin-top: 10px !important; color: var(--ink) !important; font-size: 14px; }
+  #pins { position: fixed; inset: 0; pointer-events: none; }
+  #pins button { position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 50%;
+    background: transparent; pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  #pins button[hidden] { display: none; }
+  #pins button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  #pins .n:empty { display: none; }
+  #pins .n { position: absolute; right: -4px; top: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--glass);
+    border: 1px solid var(--glass-line); color: var(--ink); font: 600 11px/18px Inter, sans-serif; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   #err { position: fixed; inset: auto var(--gutter) 50% var(--gutter); text-align: center; color: var(--ink-soft); }
   @media (max-width: 600px) {
     #card { left: 50%; transform: translate(-50%, 10px); }

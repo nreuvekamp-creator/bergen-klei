@@ -13,7 +13,7 @@ const small = coarse || Math.min(innerWidth, innerHeight) < 700;
 const FPS = 8;                                          // stop-motion rate for light, boil, grain, rain, clouds (camera stays smooth)
 const DPR = Math.min(devicePixelRatio || 1, +(Q.get('dpr') || 1.5));
 const MAX_HI = 16;
-const SET = Q.get('set') || (small ? 'lo' : 'hi');      // lo = phones/small screens, hi = desktop
+let SET = Q.get('set') || 'lo';                          // start with lo everywhere; desktop swaps in hi once it has arrived
 const DRACO = 'https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/libs/draco/gltf/';
 const deg = Math.PI / 180;
 
@@ -55,18 +55,18 @@ async function loadSet(base) {
   const file = (n, ext = '.png') => names.find((k) => k.startsWith(n + '.')) || n + ext;
   const has = (n) => !meta.passes || names.some((k) => k.startsWith(n + '.'));
   const lmDesc = meta.passes?.[file('lightmap')] || '';
-  const dir = `${base}/${SET}`;
-  const lmUrl = `${dir}/${file('lightmap')}`;
+  const passes = (set) => {   // albedo, lightmap, windows (+ ground_top on hi) of one resolution set
+    const dir = `${base}/${set}`, lmUrl = `${dir}/${file('lightmap')}`;
+    return Promise.all([
+      tex(`${dir}/${file('albedo')}`, true),
+      /16-bit/i.test(lmDesc) ? png(lmUrl).then((p) => floatTex(p, 4)) : tex(lmUrl, /srgb/i.test(lmDesc)),
+      has('windows') ? optional(tex(`${dir}/${file('windows')}`)) : null,
+      has('ground_top') && set === 'hi' ? optional(tex(`${base}/${file('ground_top')}`, true)) : null,   // ponytail: phones skip it (MBs) and show plain clay in revealed strips
+    ]).then(([alb, lm, win, ground]) => { if (ground) ground.flipY = false; return { alb, lm, win, ground }; });   // ground: glTF uv (top-left origin)
+  };
   const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath(DRACO));
-  const [alb, lm, win, gltf, ground] = await Promise.all([
-    tex(`${dir}/${file('albedo')}`, true),
-    /16-bit/i.test(lmDesc) ? png(lmUrl).then((p) => floatTex(p, 4)) : tex(lmUrl, /srgb/i.test(lmDesc)),
-    has('windows') ? optional(tex(`${dir}/${file('windows')}`)) : null,
-    gltfLoader.loadAsync(`${base}/${file('scene', '.glb')}`),
-    has('ground_top') && SET === 'hi' ? optional(tex(`${base}/${file('ground_top')}`, true)) : null,   // ponytail: phones skip it (MBs) and show plain clay in revealed strips
-  ]);
-  if (ground) ground.flipY = false;   // sampled with the glTF uv (top-left origin)
-  return { base, meta, alb, lm, win, gltf, ground };
+  const [first, gltf] = await Promise.all([passes(SET), gltfLoader.loadAsync(`${base}/${file('scene', '.glb')}`)]);
+  return { base, meta, ...first, gltf, passes };
 }
 
 let data;
@@ -79,7 +79,7 @@ const isTest = data.base === 'testdata';
 $('badge').hidden = !isTest;
 if (isTest) $('sub').textContent = 'Bryggen in klei';
 const { meta } = data;
-const IW = data.alb.image.width, IH = data.alb.image.height;
+let IW = data.alb.image.width, IH = data.alb.image.height;
 
 // ---------- GL ----------
 const canvas = $('c');
@@ -171,13 +171,14 @@ const U = {
   uKeyDir: { value: new THREE.Vector3() }, uFillDir: { value: new THREE.Vector3() },
   uKeyCol: { value: new THREE.Vector3() }, uFillCol: { value: new THREE.Vector3() }, uAmb: { value: new THREE.Vector3() },
   tAlbD: { value: null }, tLmD: { value: null }, uDRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uDUse: { value: new THREE.Vector2(1, 1) }, uDOn: { value: false },
-  uWin: { value: 0 }, uTick: { value: 0 }, uRain: { value: 0 }, uSat: { value: 1.1 }, uExpo: { value: 1.5 }, uContrast: { value: .38 },
+  uClip: { value: false }, uWin: { value: 0 }, uTick: { value: 0 }, uRain: { value: 0 }, uSat: { value: 1.1 }, uExpo: { value: 1.5 }, uContrast: { value: .38 },
 };
 const tile = meta.world?.tile || meta.tile;
 Object.assign(U, {
   uTile: { value: new THREE.Vector3(...(tile?.center || [0, 0]), 0) }, uTileR: { value: new THREE.Vector2(...(tile?.right || [1, 0])) },
   uTileF: { value: new THREE.Vector2(...(tile?.forward || [0, 1])) }, uTileH: { value: new THREE.Vector2(tile?.half_u || 1, tile?.half_v || 1) },
 });
+U.uClip.value = !!tile;
 const KIND = { building: 0, ground: 1, water: 2, plinth: 3, tree: 4, table: 5 };
 const kindOf = (o) => {
   const n = `${o.name} ${o.parent?.name || ''}`.toLowerCase();
@@ -197,7 +198,7 @@ uniform bool uDOn;
 uniform mat4 uProj, uProjV;
 uniform vec3 uProjPos;
 uniform vec2 uImg, uNF;
-uniform bool uHasWin, uHasGround, uHasV, uGroundTile;
+uniform bool uHasWin, uHasGround, uHasV, uGroundTile, uClip;
 uniform vec2 uTileR, uTileF, uTileH;
 uniform vec3 uTile;
 uniform int uKind;
@@ -206,7 +207,10 @@ uniform float uWin, uTick, uRain, uSat, uExpo, uContrast, uBias, uCell;
 varying vec3 vW; varying vec4 vC; varying vec2 vUv;
 ${COMMON}
 ${TONE}
+bool outside(){ vec2 d = vW.xy - uTile.xy;
+  return abs(dot(d, uTileR)) > uTileH.x + .5 || abs(dot(d, uTileF)) > uTileH.y + .5; }
 void main(){
+  if (uClip && uKind != 5 && uKind != 3 && outside()) discard;   // proxy terrain beyond the cut edge of the clay tile
   vec3 n = normalize(cross(dFdx(vW), dFdy(vW)));
   vec3 V = normalize(cameraPosition - vW);
   if (dot(n, V) < 0.) n = -n;
@@ -222,7 +226,7 @@ void main(){
   float facing = dot(n, normalize(uProjPos - vW));
   vis *= step(zFrag, zTex + uBias / max(facing, .25));  // hidden from the render camera: no projected facade
   vis *= smoothstep(.05, .18, facing);                  // nearly edge-on: stretched texels, fade to clay
-  if (uKind == 5) vis = 0.;                             // table: plain, so the render frame never shows as a seam
+  if (uKind == 5 || uKind == 3) vis = 0.;              // table and cut sides: plain clay (the render's own plinth would smear)
 
   vec2 px = uv * uImg;
   vec2 wob = vec2(vnoise(px / 11. + boil * 17.), vnoise(px / 11. + boil * 17. + 31.)) - .5;
@@ -250,7 +254,11 @@ void main(){
     albF = uHasGround ? texture(tGround, guv).rgb : vec3(.35, .33, .25);
   }
   else if (uKind == 2) albF = vec3(.13, .36, .57);
-  else if (uKind == 3) albF = vec3(.42, .29, .18);
+  else if (uKind == 3) {                               // cut clay side: even colour, faint knife strokes
+    float a = dot(vW.xy, uTileR) + dot(vW.xy, uTileF);
+    float k = vnoise(vec2(a / (uCell * .9), vW.z / (uCell * .12))) * .6 + vnoise(vec2(a / (uCell * .25), vW.z / (uCell * .05))) * .4;
+    albF = vec3(.40, .28, .18) * (.9 + .18 * k);
+  }
   else if (uKind == 5) albF = vec3(.62, .57, .50);
   vec3 litF = (uKeyCol * max(dot(n, uKeyDir), 0.) + uFillCol * max(dot(n, uFillDir), 0.) + uAmb) * .78;
 
@@ -296,7 +304,7 @@ table.material = new THREE.ShaderMaterial({ uniforms: { ...U, uKind: { value: KI
 // ---------- deep zoom: tile pyramid (meta.tiles) composed into one atlas per pass, only what is on screen ----------
 // meta.tiles: template 'tiles/{pass}/{z}/{x}_{y}.webp' (or passes: {albedo: template, lightmap: template}), max_z, tile_size [w, h];
 // level z = 2^z x 2^z tiles of the same render camera, x = column from the left, y = row from the top.
-const TL = meta.tiles;
+const TL = meta.tiles || (Q.has('tiles') ? meta.tiles_test : null);   // no 'tiles' in meta = no deep zoom (testdata: ?tiles=1)
 const ATLAS = Math.min(small ? 2048 : 4096, renderer.capabilities.maxTextureSize);
 const deep = TL ? (() => {
   const passList = (Array.isArray(TL.passes) ? TL.passes : Object.keys(TL.passes || { albedo: 1, lightmap: 1 })).filter((p) => p === 'albedo' || p === 'lightmap');
@@ -372,8 +380,55 @@ const deep = TL ? (() => {
 })() : null;
 U.tAlbD.value = deep?.layers.albedo?.t || null; U.tLmD.value = deep?.layers.lightmap?.t || null;
 
-// one-off depth render from the render camera
-world.overrideMaterial = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+// cut sides of the clay tile (the proxy has none): walls from the terrain edge down to the table
+let hasPlinth = false;
+root.traverse((o) => { if (o.isMesh && kindOf(o) === 'plinth') hasPlinth = true; });
+if (tile && !hasPlinth) {
+  const R2 = new THREE.Vector2(...tile.right), F2 = new THREE.Vector2(...tile.forward), C2 = new THREE.Vector2(...tile.center);
+  const [hu, hv] = [tile.half_u, tile.half_v], STEP = Math.max(4, mppD * 6);
+  // edges in tile coordinates: [u0, v0, u1, v1]
+  const edges = [[-hu, -hv, hu, -hv], [hu, -hv, hu, hv], [hu, hv, -hu, hv], [-hu, hv, -hu, -hv]];
+  const bins = edges.map(([u0, v0, u1, v1]) => ({ n: Math.ceil(Math.hypot(u1 - u0, v1 - v0) / STEP), z: [], c: [] }));
+  const v3 = new THREE.Vector3();
+  root.traverse((o) => {
+    if (!o.isMesh || kindOf(o) !== 'ground') return;
+    const pa = o.geometry.attributes.position;
+    for (let i = 0; i < pa.count; i++) {
+      v3.fromBufferAttribute(pa, i).applyMatrix4(o.matrixWorld);
+      const d = new THREE.Vector2(v3.x, v3.y).sub(C2), u = d.dot(R2), v = d.dot(F2);
+      edges.forEach(([u0, v0, u1, v1], e) => {
+        const along = u0 === u1 ? (v - v0) / (v1 - v0) : (u - u0) / (u1 - u0), off = u0 === u1 ? Math.abs(u - u0) : Math.abs(v - v0);
+        if (off > STEP * 1.5 || along < 0 || along > 1) return;
+        const b = bins[e], k = Math.round(along * b.n);
+        b.z[k] = (b.z[k] || 0) + v3.z; b.c[k] = (b.c[k] || 0) + 1;
+      });
+    }
+  });
+  const pos = [], idx = [];
+  edges.forEach(([u0, v0, u1, v1], e) => {
+    const b = bins[e]; let last = 0;
+    for (let k = 0; k <= b.n; k++) {
+      const z = b.c[k] ? Math.max(0, b.z[k] / b.c[k]) : last; last = z;
+      const u = u0 + (u1 - u0) * k / b.n, v = v0 + (v1 - v0) * k / b.n;
+      const x = C2.x + u * R2.x + v * F2.x, y = C2.y + u * R2.y + v * F2.y, o = pos.length / 3;
+      pos.push(x, y, z - .3, x, y, tableZ);
+      if (k) idx.push(o - 2, o - 1, o, o, o - 1, o + 1);
+    }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+  const wall = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: { ...U, uKind: { value: KIND.plinth }, uHasV: { value: false }, uGroundTile: { value: false } },
+    vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide }));
+  wall.name = 'sokkel'; world.add(wall);
+}
+
+// one-off depth render from the render camera (same tile clip as the colour pass)
+world.overrideMaterial = new THREE.ShaderMaterial({ uniforms: U, side: THREE.DoubleSide,
+  vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+  fragmentShader: `uniform bool uClip; uniform vec2 uTileR, uTileF, uTileH; uniform vec3 uTile; varying vec3 vW;
+    void main(){ vec2 d = vW.xy - uTile.xy;
+      if (uClip && (abs(dot(d, uTileR)) > uTileH.x + 2. || abs(dot(d, uTileF)) > uTileH.y + 2.) && vW.z > ${(tableZ + 1).toFixed(1)}) discard;
+      gl_FragColor = vec4(1.); }` });
 renderer.setRenderTarget(depthRT); renderer.render(world, projCam); renderer.setRenderTarget(null);
 world.overrideMaterial = null;
 
@@ -390,14 +445,17 @@ const cloudMat = new THREE.ShaderMaterial({
       float fuzz = vnoise(vW.xy * .35 + vW.z * .3 + mod(uTick, 3.) * 13.) * .14 + vnoise(vW.xy * 2.1 + vW.z) * .06;   // felt/cotton fibres, boiling at 8 fps
       float l = clamp(.55 + .45 * n.z + .25 * dot(n, uKeyDir) - fuzz, 0., 1.);
       vec3 c = mix(vec3(.42, .45, .52), vec3(.97, .96, .93), l) * uLight;
-      gl_FragColor = vec4(pow(c, vec3(1. / 2.2)), 0.); }`,
+      gl_FragColor = vec4(pow(c, vec3(1. / 2.2)), .8); }`,
+  transparent: true, depthWrite: false, blending: THREE.CustomBlending,     // see-through a little; keep the bloom alpha of what is behind
+  blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
 });
+const uiRects = () => ['title', 'time', 'card'].map((id) => $(id)).filter((e) => e.id !== 'card' || e.classList.contains('open')).map((e) => e.getBoundingClientRect());
 {
   const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
   const sizeM = (tanY * target0.distanceTo(projCam.position)) * 2;   // image height in metres at the target
   for (let i = 0; i < 6; i++) {
     const parts = [];
-    const n = 5 + Math.floor(rnd() * 4), r0 = sizeM * (.05 + rnd() * .03);
+    const n = 4 + Math.floor(rnd() * 3), r0 = sizeM * (.02 + rnd() * .012);
     for (let j = 0; j < n; j++) {
       const g = new THREE.IcosahedronGeometry(r0 * (.55 + rnd() * .5), 4);
       const p = g.attributes.position, ph = rnd() * 9;
@@ -411,8 +469,8 @@ const cloudMat = new THREE.ShaderMaterial({
       parts.push(g);
     }
     const m = new THREE.Mesh(mergeGeometries(parts), cloudMat);
-    m.rotation.z = Math.atan2(-(projCam.matrixWorld.elements[1]), projCam.matrixWorld.elements[0]);   // long side along the image x axis
-    m.userData = { u: (i + rnd() * .6) / 6, v: .62 + rnd() * .16, lift: sizeM * (.28 + rnd() * .12), speed: .004 + rnd() * .004 };
+    m.rotation.z = Math.atan2(projCam.matrixWorld.elements[1], projCam.matrixWorld.elements[0]);   // long side along the image x axis
+    m.userData = { u: (i + rnd() * .6) / 6, v: .5 + rnd() * .14, lift: sizeM * (.09 + rnd() * .06), speed: .003 + rnd() * .003, r: r0 * 2.2, s: 0 };
     clouds.add(m);
   }
 }
@@ -420,9 +478,13 @@ function placeClouds(tick, amount) {
   clouds.visible = amount > .01;
   if (!clouds.visible) return;
   for (const m of clouds.children) {
-    const d = m.userData, u = ((d.u + tick * d.speed / FPS) % 1.3) - .15;   // slow drift, wraps around
+    const d = m.userData, u = .12 + ((d.u + tick * d.speed / FPS) % 1) * .8;   // slow drift, wraps inside the diorama
     m.position.copy(projRay(u, d.v, target0.z)); m.position.z += d.lift;
-    m.scale.setScalar(.2 + .8 * amount);
+    // never over the UI: shrink away when the tuft would touch the title, the time panel or an open card
+    const [x, y, front] = screenOf(m.position, camera), rpx = Math.hypot(...screenOf(m.position.clone().addScaledVector(camRightH, d.r), camera).slice(0, 2).map((v, i) => v - [x, y][i]));
+    const hit = !front || uiRects().some((r) => x + rpx > r.left && x - rpx < r.right && y + rpx > r.top && y - rpx < r.bottom);
+    d.s += ((hit ? 0 : 1) - d.s) * .5;
+    m.scale.setScalar(Math.max(.001, (.2 + .8 * amount) * d.s));
   }
 }
 
@@ -431,7 +493,7 @@ const camera = new THREE.PerspectiveCamera(30, 1, 10, 20000);
 camera.up.set(0, 0, 1);
 const fwd0 = target0.clone().sub(projCam.position);
 const bearing0 = Math.atan2(fwd0.x, fwd0.y) / deg, pitch0 = Math.asin(-fwd0.z / dist0) / deg;
-const LIM = { yaw: [-12, 12], pitch: [-5, 15], zoom: [1, (small ? 4 : 2) * (meta.tiles ? 2 : 1)] };   // tile pyramid: twice as deep
+const LIM = { yaw: [-12, 12], pitch: [-5, 15], zoom: [1, (small ? 4 : 2) * (deep ? 2 : 1)] };   // tile pyramid: twice as deep
 const T = { p: target0.clone(), yaw: 0, pitch: 0, zoom: 1 };      // target state
 const C = { p: target0.clone(), yaw: 0, pitch: 0, zoom: 1 };      // eased state
 let sw = 1, sh = 1, cover = [tanX, tanY], liftNdc = 0;
@@ -485,7 +547,7 @@ uniform vec2 uScreen;
 uniform float uDpr, uFocus, uDof, uTick, uTime, uRain, uRainLight;
 uniform int uSel, uHiN;
 uniform vec3 uAccent, uAccent2;
-uniform vec4 uHiPos[${MAX_HI}];   // xy = screen uv, z = 1 in front of the camera, w = category (0 toerist, 1 samen, -1 filtered out)
+uniform vec4 uHiPos[${MAX_HI}];   // one per marker: xy = screen uv, z = number of places in it, w = category (0 toerist, 1 samen)
 ${COMMON}
 vec4 S(vec2 uv, float lod){ return textureLod(tScene, uv, lod); }
 void main(){
@@ -521,10 +583,11 @@ void main(){
   for (int i = 0; i < ${MAX_HI}; i++) {
     if (i >= uHiN) break;
     if (uHiPos[i].w < 0. || uHiPos[i].z < .5) continue;
+    float cnt = uHiPos[i].z;   // places merged into this marker
     float pulse = .5 + .5 * sin(uTime * 2.2 + float(i) * 1.3);
     float sel = i == uSel ? 1. : 0.;
     float d = length((uv - uHiPos[i].xy) * uScreen / uDpr);
-    float rr = 13. + 4. * pulse + 4. * sel;
+    float rr = 13. + 4. * pulse + 4. * sel + 3. * min(cnt - 1., 3.);
     float g = smoothstep(2.2, 0., abs(d - rr)) * (.6 + .3 * pulse + .4 * sel) + smoothstep(6., 2.5, d) * .95 + smoothstep(rr + 16., 0., d) * .1;
     glow += g; gcol += g * (uHiPos[i].w > .5 ? uAccent2 : uAccent);
   }
@@ -721,6 +784,49 @@ function pick(x, y) {
   if (best >= 0) openCard(highlights[best], best); else closeCard();
 }
 
+// ---------- markers: places close together on screen merge into one (with a count), split again when zooming in ----------
+const pinsEl = Object.assign(document.createElement('div'), { id: 'pins' });
+document.body.insertBefore(pinsEl, $('title'));
+const pins = Array.from({ length: MAX_HI }, () => {
+  const b = document.createElement('button');
+  b.innerHTML = '<span class="n"></span>';
+  b.onclick = () => openCluster(b.cluster);
+  pinsEl.append(b);
+  return b;
+});
+function openCluster(c) {
+  if (!c) return;
+  if (c.m.length === 1) return openCard(c.m[0], highlights.indexOf(c.m[0]));
+  if (T.zoom >= LIM.zoom[1] - .01) return openCard(c.m[0], highlights.indexOf(c.m[0]));   // cannot split further
+  const p = c.m.reduce((a, h) => a.add(h.world), new THREE.Vector3()).divideScalar(c.m.length); p.z = target0.z;
+  T.zoom = Math.min(LIM.zoom[1], T.zoom * 2.2);
+  T.p.copy(clampPivot(p, T.zoom));
+}
+function layoutPins() {
+  const cl = [];
+  for (const h of highlights) {
+    if (!visible(h)) continue;
+    const [x, y, front] = screenOf(h.world, camera);
+    if (!front || x < -30 || y < -30 || x > sw + 30 || y > sh + 30) continue;
+    const c = cl.find((c) => Math.hypot(c.x - x, c.y - y) < 50);
+    if (c) { c.m.push(h); c.x += (x - c.x) / c.m.length; c.y += (y - c.y) / c.m.length; } else cl.push({ x, y, m: [h] });
+  }
+  pu.uHiN.value = cl.length; pu.uSel.value = -1;
+  pins.forEach((b, i) => {
+    const c = cl[i];
+    b.hidden = !c; b.cluster = c;
+    if (!c) return;
+    pu.uHiPos.value[i].set(c.x / sw, 1 - c.y / sh, c.m.length, c.m.every((h) => catOf(h) === 'samen') ? 1 : 0);
+    if (c.m.includes(highlights[selected])) pu.uSel.value = i;
+    b.style.transform = `translate(${c.x}px, ${c.y}px)`;
+    const label = c.m.length > 1 ? `${c.m.length} plekken: ${c.m.map((h) => h.titel).join(', ')}` : c.m[0].titel;
+    if (b.getAttribute('aria-label') !== label) {
+      b.setAttribute('aria-label', label); b.title = label;
+      b.firstChild.textContent = c.m.length > 1 ? c.m.length : '';
+    }
+  });
+}
+
 // ---------- input: drag = pan, right/shift-drag or two-finger twist/tilt = turn, wheel/pinch = zoom ----------
 const dragCam = new THREE.PerspectiveCamera();
 dragCam.up.set(0, 0, 1);
@@ -830,15 +936,19 @@ function frame(now) {
   C.yaw += (T.yaw - C.yaw) * k; C.pitch += (T.pitch - C.pitch) * k; C.zoom += (T.zoom - C.zoom) * k; C.p.lerp(T.p, k);
   pose(C, camera);
   if (deep) { if (now - lastDeep > 300) { lastDeep = now; deep.update(); } deep.upload(now); }
-  highlights.forEach((h, i) => {
-    const v = h.world.clone().project(camera);
-    pu.uHiPos.value[i].set(v.x * .5 + .5, v.y * .5 + .5, v.z < 1 ? 1 : 0, visible(h) ? (catOf(h) === 'samen' ? 1 : 0) : -1);
-  });
+  layoutPins();
   pu.uFocus.value = C.p.clone().project(camera).y * .5 + .5;
-  pu.uTime.value = now / 1000; pu.uSel.value = selected;
+  pu.uTime.value = now / 1000;
   renderer.setRenderTarget(sceneRT); renderer.render(world, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, quadCam);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-window.__viewer = { deep: () => deep?.state(), highlights, openCard, closeCard, data: data.base, set: SET, T, C, LIM, setRain, toScreen: (h) => screenOf(h.world, camera) };   // for tests
+if (!small && !Q.has('set')) data.passes('hi').then((p) => {   // progressive: sharp hi set replaces lo when it is in
+  for (const t of [U.tAlb.value, U.tLm.value, U.tWin.value]) t?.dispose();
+  U.tAlb.value = p.alb; U.tLm.value = p.lm; U.tWin.value = p.win; U.uHasWin.value = !!p.win;
+  if (p.ground) { U.tGround.value = p.ground; U.uHasGround.value = true; }
+  IW = p.alb.image.width; IH = p.alb.image.height; U.uImg.value.set(IW, IH);
+  SET = 'hi';
+}).catch((e) => console.info('hi-set niet geladen, blijft lo:', e.message));
+window.__viewer = { pins: () => pins.filter((b) => !b.hidden).map((b) => ({ n: b.cluster.m.length, t: b.cluster.m.map((h) => h.titel), x: b.cluster.x, y: b.cluster.y })), deep: () => deep?.state(), highlights, openCard, closeCard, data: data.base, get set() { return SET; }, T, C, LIM, setRain, toScreen: (h) => screenOf(h.world, camera) };   // for tests

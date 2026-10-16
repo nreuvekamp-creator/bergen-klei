@@ -333,7 +333,7 @@
    1080
   ]
  },
- "tiles": {
+ "tiles_test": {
   "template": "tiles/{pass}/{z}/{x}_{y}.webp",
   "passes": [
    "albedo",
