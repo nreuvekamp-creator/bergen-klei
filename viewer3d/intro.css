@@ -1,0 +1,73 @@
+/* Intro: Bergen (the clay prince) tells the story on a white page before the map appears. */
+#intro { display: none; position: fixed; inset: 0; z-index: 50; touch-action: none; user-select: none; -webkit-user-select: none;
+  font-family: Inter, system-ui, sans-serif; color: #2e2620; cursor: pointer; }
+html.intro-on #intro { display: block; }
+#intro:empty { background: #fffdf9; }   /* white before intro.js has built it: nothing of the map or loader paints first */
+#intro .veil { position: absolute; inset: 0; background: #fffdf9; transition: opacity .5s; }
+#intro.fadein .veil, #intro.fadein .stage { opacity: 0; }
+#intro.open { pointer-events: none; cursor: auto; }
+
+#intro .mark { position: absolute; top: max(18px, env(safe-area-inset-top)); left: max(20px, env(safe-area-inset-left));
+  font: 600 17px/1 Fraunces, Georgia, serif; color: #2e2620; transition: opacity .4s; }
+#intro .mark b { color: #b5443a; font-weight: 600; margin-right: 6px; font-size: 22px; }
+#intro .skip { position: absolute; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 2;
+  min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: #6f6253;
+  font: 500 15px Inter, sans-serif; cursor: pointer; transition: opacity .4s; }
+#intro .skip:hover, #intro .skip:focus-visible { background: rgba(80,60,40,.07); }
+
+#intro .stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: max(64px, calc(env(safe-area-inset-top) + 52px)) 16px max(56px, calc(env(safe-area-inset-bottom) + 44px)); transition: opacity .45s; }
+#intro .fig { position: relative; width: min(40dvh, 68vw, 400px); aspect-ratio: 1; flex: none; margin-bottom: -2.5%; }
+#intro .fig img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; transform: translateY(10px) scale(.97);
+  transition: opacity .45s, transform .6s cubic-bezier(.2,.8,.2,1); }
+#intro .fig img.on { opacity: 1; transform: none; }
+
+/* speech balloon: prescription paper, tail points up at the figure */
+#intro .bubble { position: relative; width: min(620px, 100%); padding: 18px 22px 18px; border-radius: 14px; background: #f7f0e1;
+  background-image: radial-gradient(rgba(120, 90, 50, .05) 1px, transparent 1.2px); background-size: 5px 5px;
+  box-shadow: 0 1px 1px rgba(40,25,10,.12), 0 10px 26px -10px rgba(60,35,10,.35); }
+#intro .bubble::before { content: ""; position: absolute; top: -9px; left: 50%; width: 18px; height: 18px; margin-left: -9px;
+  background: #f7f0e1; transform: rotate(45deg); border-radius: 3px 0 0 0; }
+#intro .label { position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px;
+  color: #b5443a; font: 600 12.5px Inter, sans-serif; letter-spacing: 1.3px; text-transform: uppercase; }
+#intro .label span:last-child { color: #6f6253; letter-spacing: .5px; font-weight: 500; font-variant-numeric: tabular-nums; }
+#intro .say { position: relative; margin: 0; font: 500 clamp(21px, 2.1vw + 9px, 29px)/1.32 Fraunces, Georgia, serif; text-wrap: pretty; }
+#intro .say em { font-style: italic; color: #b5443a; }
+#intro .note { margin: 8px 0 0; color: #6f6253; font-size: clamp(13.5px, .6vw + 9px, 16px); }
+#intro .note:empty { display: none; }
+#intro .bubble.swap .label, #intro .bubble.swap .say, #intro .bubble.swap .note { animation: intro-in .45s ease both; }
+@keyframes intro-in { from { opacity: 0; transform: translateY(6px); } }
+
+#intro .next { margin-top: 14px; font: 500 21px/1 Caveat, 'Bradley Hand', cursive; color: #23408e; min-height: 24px; }
+#intro .dots { display: flex; gap: 8px; margin-top: 12px; }
+#intro .dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(80,60,40,.18); transition: background .3s, transform .3s; }
+#intro .dots i.on { background: #d9783f; transform: scale(1.25); }
+
+/* waiting: same white style, calm bar */
+#intro .bar { display: none; height: 8px; margin: 14px 0 2px; border-radius: 6px; background: #efe5d0; overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.1); }
+#intro .bar i { display: block; height: 100%; transform-origin: left; transform: scaleX(0); transition: transform .4s;
+  background: linear-gradient(180deg, #ec9a62, #d9783f 60%, #b65d2b); border-radius: 6px; }
+#intro.waiting .bar { display: block; }
+#intro.waiting .fig img.on { animation: intro-breathe 3.2s ease-in-out infinite; }
+@keyframes intro-breathe { 50% { transform: translateY(-4px); } }
+
+/* last step: the map shows through, the last line sits on a prescription card */
+#intro.open .stage, #intro.open .mark, #intro.open .skip { opacity: 0; visibility: hidden; transition: opacity .4s, visibility 0s .4s; }
+#intro .final { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); width: min(560px, calc(100vw - 32px));
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center; padding: 14px 18px 16px 10px; border-radius: 14px;
+  background: #f7f0e1; background-image: radial-gradient(rgba(120, 90, 50, .05) 1px, transparent 1.2px); background-size: 5px 5px;
+  border-top: 6px solid #d9783f; box-shadow: 0 1px 1px rgba(40,25,10,.18), 0 10px 30px -8px rgba(20,10,0,.45);
+  opacity: 0; transform: translate(-50%, 24px) rotate(-.4deg); transition: opacity .5s, transform .6s cubic-bezier(.2,.8,.2,1); pointer-events: none; cursor: auto; }
+#intro.open .final { opacity: 1; transform: translate(-50%, 0) rotate(-.4deg); pointer-events: auto; }
+#intro .final img { grid-row: span 3; width: clamp(92px, 12vw, 132px); height: auto; }
+#intro .final .label { margin: 0; }
+#intro .final .say { font-size: clamp(19px, 1.2vw + 10px, 24px); }
+#intro .final button { justify-self: start; margin-top: 8px; min-height: 46px; padding: 0 20px; border: 0; border-radius: 10px; background: #b5443a; color: #fff;
+  font: 600 16px Inter, sans-serif; cursor: pointer; box-shadow: 0 2px 0 #8a2f27; }
+#intro .final button:active { transform: translateY(1px); box-shadow: 0 1px 0 #8a2f27; }
+@media (max-width: 480px) {
+  #intro .final { padding: 12px 14px 14px 6px; gap: 2px 8px; }
+  #intro .final img { width: 84px; }
+}
+@media (max-height: 560px) { #intro .fig { width: min(34dvh, 60vw); } }
+@media (prefers-reduced-motion: reduce) { #intro * { animation: none !important; transition-duration: .01s !important; } }

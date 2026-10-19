@@ -29,12 +29,35 @@ let SET = Q.get('set') || 'lo';                          // lo + deep-zoom tiles
 const DRACO = 'https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/libs/draco/gltf/';
 const deg = Math.PI / 180;
 
-// ---------- loading: everything up front (also every deep-zoom tile), with a progress bar ----------
+// ---------- loading: what the first picture needs (~9 MB) with a progress bar; deep-zoom tiles stream in later ----------
+// Hook for an intro (intro.js): window.kleiLoad = { progress 0..1, ready bool }; events 'klei:progress' (detail = 0..1)
+// and 'klei:ready' (first frame drawn, loading screen fades) on window. Loading starts as soon as main.js runs.
+window.kleiLoad = { progress: 0, ready: false, offline: false };
+// offline + fast second visit: the published site has a service worker (../sw.js, see publish.sh) that keeps every file.
+// Not on localhost (renders change there; ?sw=1 forces it). After the first picture, the rest (all deep-zoom tiles, ~26 MB)
+// is fetched in the background through it, so the whole diorama then works without network; kleiLoad.offline = true when done.
+const SW = 'serviceWorker' in navigator && (Q.has('sw') || !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) ? navigator.serviceWorker : null;
+SW?.register('../sw.js').catch((e) => console.info('geen service worker:', e.message));
+addEventListener('klei:ready', () => setTimeout(async () => {
+  if (!SW || navigator.connection?.saveData) return;
+  if (!SW.controller) await new Promise((res) => { SW.addEventListener('controllerchange', res, { once: true }); setTimeout(res, 15000); });
+  if (!SW.controller) return;
+  const zOf = (k) => +k.split('/')[1];
+  const tilesByZ = [...data.tiles.urls].sort((a, b) => zOf(a[0]) - zOf(b[0])).map((e) => e[1]);
+  const seen = performance.getEntriesByType('resource').map((e) => e.name).filter((u) => /^https?:/.test(u) && !/api\.met\.no/.test(u));
+  const list = [...new Set([location.href, new URL('../', location.href).href, ...seen, ...tilesByZ])];
+  let i = 0, ok = 0;
+  const worker = async () => { while (i < list.length) await fetch(list[i++]).then((r) => r.arrayBuffer()).then(() => ok++, () => {}); };
+  await Promise.all([worker(), worker()]);   // two at a time: what the screen needs still gets most of the bandwidth
+  window.kleiLoad.offline = ok === list.length;
+  dispatchEvent(new CustomEvent('klei:offline', { detail: { ok, total: list.length } }));
+}, 2000), { once: true });
 const prog = { got: new Map(), tot: new Map() };
 function bar() {
   let g = 0, t = 0;
   for (const [k, v] of prog.tot) { t += v; g += Math.min(v, prog.got.get(k) || 0); }
   const f = t ? g / t : 0;
+  window.kleiLoad.progress = f; dispatchEvent(new CustomEvent('klei:progress', { detail: f }));
   $('load-bar').style.transform = `scaleX(${f})`;
   $('load-pct').textContent = `${Math.round(f * 100)}%`;
   $('load').setAttribute('aria-valuenow', Math.round(f * 100));
@@ -43,7 +66,7 @@ async function getBlob(url, est = 4e5) {   // fetch with byte progress
   prog.tot.set(url, est); prog.got.set(url, 0);
   const r = await fetch(url);
   if (!r.ok) throw new Error(`${url} ${r.status}`);
-  const n = +r.headers.get('content-length');
+  const n = r.headers.get('content-encoding') ? 0 : +r.headers.get('content-length');   // gzip (Pages: glb, json): length is compressed, body is not
   if (n) { prog.tot.set(url, n); bar(); }
   let b;
   if (r.body?.getReader) {
@@ -99,10 +122,9 @@ async function loadSet(base) {
   const has = (n) => !meta.passes || names.some((k) => k.startsWith(n + '.'));
   const lmDesc = meta.passes?.[file('lightmap')] || '';
   const dir = `${base}/${SET}`;
-  // tiles: all compressed files in memory now (~30 MB); decoded one by one later, only what the screen needs
+  // tiles: only the list of what exists now; each is fetched when the screen first needs it (data.tiles.get -> Promise<Blob>)
   const TL = meta.tiles || (Q.has('tiles') ? meta.tiles_test : null);
-  const tiles = new Map();
-  const tileJobs = [];
+  const urls = new Map(), blobs = new Map();
   if (TL) {
     const passList = (Array.isArray(TL.passes) ? TL.passes : Object.keys(TL.passes || { albedo: 1, lightmap: 1 })).filter((p) => p === 'albedo' || p === 'lightmap');
     const tpl = (pass) => ((TL.passes && !Array.isArray(TL.passes) && typeof TL.passes[pass] === 'string') ? TL.passes[pass]
@@ -110,22 +132,29 @@ async function loadSet(base) {
     const lv = TL.max_z ?? TL.z_max ?? TL.levels ?? 0;
     const maxZ = Array.isArray(lv) ? Math.max(...lv.map((l) => +(l.z ?? l))) : +lv;
     for (const pass of passList) for (let z = 1; z <= maxZ; z++) for (let y = 0; y < 2 ** z; y++) for (let x = 0; x < 2 ** z; x++) {
-      if (!tileAvail(TL, z, x, y)) continue;
-      const u = `${base}/${tpl(pass).replace('{pass}', pass).replace('{z}', z).replace('{x}', x).replace('{y}', y)}`;
-      tileJobs.push(getBlob(u, 5e5).then((b) => tiles.set(`${pass}/${z}/${x}_${y}`, b), () => {}));   // a missing tile falls back to its parent
+      if (tileAvail(TL, z, x, y)) urls.set(`${pass}/${z}/${x}_${y}`, `${base}/${tpl(pass).replace('{pass}', pass).replace('{z}', z).replace('{x}', x).replace('{y}', y)}`);
     }
   }
+  const tiles = { has: (k) => urls.has(k), get size() { return urls.size; }, urls,
+    get(k) {   // memoised; a network error is forgotten so the tile is tried again later (train: flaky network)
+      if (!blobs.has(k)) blobs.set(k, fetch(urls.get(k)).then((r) => r.ok ? r.blob() : Promise.reject(new Error(r.status))).catch((e) => { blobs.delete(k); throw e; }));
+      return blobs.get(k);
+    } };
+  // phones/tablets: ground_top (fallback colour where the render saw nothing) at half size, 56 -> 19 MB of GPU memory
+  const groundTex = (b) => (small ? createImageBitmap(b, { resizeWidth: 2048, resizeQuality: 'high' }).then((bm) => {
+    const t = new THREE.Texture(bm); t.flipY = false; t.colorSpace = THREE.SRGBColorSpace;
+    t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4; t.needsUpdate = true; return t;
+  }) : Promise.reject()).catch(() => tex(b, true));
   const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath(DRACO));
   const [alb, lm, win, ground, gltf] = await Promise.all([
     getBlob(`${dir}/${file('albedo')}`, 2e6).then((b) => tex(b, true)),
     getBlob(`${dir}/${file('lightmap')}`, 2e6).then((b) => /16-bit/i.test(lmDesc) ? png(b).then((p) => floatTex(p, 4)) : tex(b, /srgb/i.test(lmDesc))),
     has('windows') ? optional(getBlob(`${dir}/${file('windows')}`, 3e5).then((b) => tex(b))) : null,
-    has('ground_top') ? optional(getBlob(`${base}/${file('ground_top')}`, 2e6).then((b) => tex(b, true))) : null,
-    getBlob(`${base}/${file('scene', '.glb')}`, 4.5e6).then(async (b) => {
+    has('ground_top') ? optional(getBlob(`${base}/${file('ground_top')}`, 1.1e6).then(groundTex)) : null,
+    getBlob(`${base}/${file('scene', '.glb')}`, 3.7e6).then(async (b) => {
       const u = URL.createObjectURL(b);
       try { return await gltfLoader.loadAsync(u); } finally { URL.revokeObjectURL(u); }
     }),
-    ...tileJobs,
   ]);
   if (ground) ground.flipY = false;   // glTF uv (top-left origin)
   return { base, meta, alb, lm, win, ground, gltf, tiles };
@@ -233,6 +262,7 @@ const U = {
   uKeyCol: { value: new THREE.Vector3() }, uFillCol: { value: new THREE.Vector3() }, uAmb: { value: new THREE.Vector3() },
   tAlbD: { value: null }, tLmD: { value: null }, uDRect: { value: new THREE.Vector4(0, 0, 1, 1) }, uDUse: { value: new THREE.Vector2(1, 1) }, uDOn: { value: false },
   uClip: { value: false }, uWin: { value: 0 }, uTick: { value: 0 }, uRain: { value: 0 }, uSat: { value: 1.1 }, uExpo: { value: 1.5 }, uContrast: { value: .38 },
+  uCalm: { value: 0 },   // 0 overview .. 1 zoomed in: stop-motion boil, wobble and tilt-shift fade out so a close-up is calm and sharp
 };
 const tile = meta.world?.tile || meta.tile;
 Object.assign(U, {
@@ -264,7 +294,7 @@ uniform vec2 uTileR, uTileF, uTileH;
 uniform vec3 uTile;
 uniform int uKind;
 uniform vec3 uKeyW, uFillW, uKeyDir, uFillDir, uKeyCol, uFillCol, uAmb;
-uniform float uWin, uTick, uRain, uSat, uExpo, uContrast, uBias, uCell;
+uniform float uWin, uTick, uRain, uSat, uExpo, uContrast, uBias, uCell, uCalm;
 varying vec3 vW; varying vec4 vC; varying vec2 vUv;
 ${COMMON}
 ${TONE}
@@ -291,7 +321,7 @@ void main(){
 
   vec2 px = uv * uImg;
   vec2 wob = vec2(vnoise(px / 11. + boil * 17.), vnoise(px / 11. + boil * 17. + 31.)) - .5;
-  vec2 uvw = uv + wob * 1.3 / uImg;                    // ~0.6 px clay wobble
+  vec2 uvw = uv + wob * 1.3 * (1. - uCalm) / uImg;     // ~0.6 px clay wobble (render px: zoomed in that would be a visible shimmer)
   vec3 albP = texture(tAlb, uvw).rgb;
   vec3 lm = texture(tLm, uvw).rgb;
   if (uDOn) {                                          // deep zoom: sharper tiles where they have arrived (alpha 1)
@@ -303,7 +333,7 @@ void main(){
       if (dl.a > .99) lm = dl.rgb;
     }
   }
-  albP *= 1. + (vnoise(px / 2.5 + boil * 7.3) - .5) * .07;
+  albP *= 1. + (vnoise(px / 2.5 + boil * 7.3) - .5) * .07 * (1. - uCalm);
   lm /= .8;                                            // baked on 0.8-grey clay
   vec3 litP = uKeyCol * dot(uKeyW, lm) + uFillCol * dot(uFillW, lm) + uAmb;
 
@@ -377,7 +407,7 @@ const deep = TL ? (() => {
   const lv = TL.max_z ?? TL.z_max ?? TL.levels ?? 0;
   const maxZ = Array.isArray(lv) ? Math.max(...lv.map((l) => +(l.z ?? l))) : +lv;
   // which tiles exist: complete_levels have all, partial_levels list "x_y"; without that info every tile is assumed present
-  const avail = (z, x, y) => data.tiles.has(`${passList[0]}/${z}/${x}_${y}`);   // preloaded at start
+  const avail = (z, x, y) => data.tiles.has(`${passList[0]}/${z}/${x}_${y}`);   // listed in meta (fetched lazily)
   const best = (z, x, y) => { for (let k = 0; z - k >= 1; k++) if (avail(z - k, x >> k, y >> k)) return z - k; return 0; };   // missing tile: fall back to its parent
   const layers = {};
   for (const pass of passList) {
@@ -395,17 +425,16 @@ const deep = TL ? (() => {
     const k = `${pass}/${z}/${x}_${y}`;
     w = Math.min(TW, Math.ceil(w));
     if ((cache.get(k)?.width ?? 0) >= w - 1 || loading.has(k) || failed.has(k)) return;
+    if (!data.tiles.has(k)) { failed.add(k); return; }
     loading.add(k);
-    const blob = data.tiles.get(k);
-    if (!blob) { failed.add(k); loading.delete(k); return; }
     const opt = w < TW ? { resizeWidth: w, resizeHeight: Math.round(w * TH / TW), resizeQuality: 'high' } : undefined;
-    createImageBitmap(blob, opt).then((b) => {
+    data.tiles.get(k).then((blob) => createImageBitmap(blob, opt).then((b) => {   // fetched on first use (network error: retried on the next redraw)
       const old = cache.get(k);
       if (old) { cache.delete(k); bytes -= old.width * old.height * 4; old.close?.(); }
       cache.set(k, b); bytes += b.width * b.height * 4;
       while (bytes > BUDGET && cache.size > 1) { const [ok, ob] = cache.entries().next().value; cache.delete(ok); bytes -= ob.width * ob.height * 4; ob.close?.(); }
       redraw();
-    }).catch(() => failed.add(k)).finally(() => loading.delete(k));
+    }, () => failed.add(k)), () => {}).finally(() => loading.delete(k));
   }
   // paint every slot with the sharpest tile that is loaded (an ancestor, cropped, until the real one arrives)
   function redraw() {
@@ -635,26 +664,27 @@ const postMat = new THREE.ShaderMaterial({
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
   uniforms: {
     tScene: { value: sceneRT.texture }, uScreen: { value: new THREE.Vector2() }, uDpr: { value: DPR },
-    uFocus: { value: .5 }, uDof: { value: small ? 1.0 : 1.5 }, uTick: { value: 0 }, uRain: { value: 0 }, uRainLight: { value: 1 },
+    uFocus: { value: .5 }, uDof: { value: small ? 1.0 : 1.5 }, uTick: { value: 0 }, uRain: { value: 0 }, uRainLight: { value: 1 }, uCalm: U.uCalm,
   },
   fragmentShader: `
 precision highp float;
 varying vec2 vUv;
 uniform sampler2D tScene;
 uniform vec2 uScreen;
-uniform float uDpr, uFocus, uDof, uTick, uRain, uRainLight;
+uniform float uDpr, uFocus, uDof, uTick, uRain, uRainLight, uCalm;
 ${COMMON}
 vec4 S(vec2 uv, float lod){ return textureLod(tScene, uv, lod); }
 void main(){
   vec2 uv = vUv;
   vec3 bloom = vec3(1., .62, .32) * (S(uv, 3.5).a * .9 + S(uv, 5.5).a * .9);
-  float blur = smoothstep(.26, .7, abs(uv.y - uFocus)) * uDof;   // wide sharp band, mild falloff
+  float blur = smoothstep(.26, .7, abs(uv.y - uFocus)) * uDof * (1. - uCalm);   // wide sharp band, mild falloff
   vec2 r = exp2(blur) * .8 / uScreen;
   vec3 col = S(uv, blur).rgb * .4 + (S(uv + r, blur).rgb + S(uv - r, blur).rgb + S(uv + vec2(-r.x, r.y), blur).rgb + S(uv + vec2(r.x, -r.y), blur).rgb) * .15;
   col += bloom;
   vec2 ca = (uv - .5) * 2.4 / uScreen.y * vec2(uScreen.y / uScreen.x, 1.);   // light chromatic aberration toward the edges
-  col.r = mix(col.r, S(uv + ca, blur + .5).r + bloom.r, .65);
-  col.b = mix(col.b, S(uv - ca, blur + .5).b + bloom.b, .65);
+  float cl = blur + .5 * (1. - uCalm);
+  col.r = mix(col.r, S(uv + ca, cl).r + bloom.r, .65);
+  col.b = mix(col.b, S(uv - ca, cl).b + bloom.b, .65);
 
   // rain: thin short streaks (a few px), redrawn on the stop-motion clock; subtle
   if (uRain > .01) {
@@ -672,7 +702,7 @@ void main(){
 
   vec2 v = (uv - .5) * vec2(uScreen.x / uScreen.y, 1.);
   col *= mix(.72, 1., smoothstep(1.05, .35, length(v)));             // vignette
-  col += (hash(floor(uv * uScreen) + uTick * 17.31) - .5) * .05;      // grain on the stop-motion clock
+  col += (hash(floor(uv * uScreen) + uTick * 17.31) - .5) * .05 * (1. - .7 * uCalm);   // grain on the stop-motion clock, faint up close
   gl_FragColor = vec4(col, 1.);
 }`,
 });
@@ -985,7 +1015,7 @@ function showHint() {
   try { seen = localStorage.getItem('bergen-klei-hint') === '1'; localStorage.setItem('bergen-klei-hint', '1'); } catch {}
   if (seen && !Q.has('hint')) return;
   const el = $('hint');
-  el.textContent = coarse ? 'Eén vinger schuift, knijp om te zoomen, draai met twee vingers. Dubbeltik zoomt in.'
+  el.textContent = coarse ? 'Eén vinger schuift, knijp om te zoomen, draai met twee vingers. Dubbeltik zoomt in, tik met twee vingers zoomt uit.'
     : 'Slepen schuift, scrollen zoomt. Draaien: rechtermuisknop of shift ingedrukt en slepen.';
   el.classList.remove('gone');
   const t0 = performance.now(), hide = () => el.classList.add('gone');
@@ -1013,19 +1043,27 @@ function startGesture(e) {
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 function down(e) {
   if (e.currentTarget === pinsEl && !e.target.closest('button')) return;
+  e.preventDefault();   // no text selection / iOS callout on a long press
   cancelFlight();
   if (!menu.classList.contains('closed')) setMenu(false);
-  pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  canvas.setPointerCapture(e.pointerId);
+  if (e.isPrimary && pts.size) resetPointers();   // a first finger while pointers are still listed: their up/cancel got lost
+  pts.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+  // iOS Safari keeps a touch on the element it started on (a pin) and ignores capture onto another element, so
+  // move/up/cancel are handled on window (they bubble from canvas and pins alike); capture only helps a mouse leave the window
+  try { e.target.setPointerCapture(e.pointerId); } catch {}
   startGesture(e);
   gesture.pin = pts.size === 1 && e.target.closest?.('#pins button');
+  if (pts.size === 2) gesture.tap2 = performance.now();   // two-finger tap = zoom out (cleared when the fingers move)
 }
+function resetPointers() { pts.clear(); gesture = null; canvas.classList.remove('dragging'); }
 canvas.addEventListener('pointerdown', down);
 pinsEl.addEventListener('pointerdown', down);
 const tmp = { p: new THREE.Vector3(), yaw: 0, pitch: 0, zoom: 1 };
-canvas.addEventListener('pointermove', (e) => {
+addEventListener('pointermove', (e) => {
   if (!pts.has(e.pointerId) || !gesture) return;
-  pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const q = pts.get(e.pointerId);
+  if (Math.hypot(e.clientX - q.x0, e.clientY - q.y0) > 10) gesture.tap2 = 0;
+  q.x = e.clientX; q.y = e.clientY;
   const g = gesture;
   if (g.kind === 'two' && pts.size >= 2) {
     const [a, b] = [...pts.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
@@ -1052,8 +1090,13 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 function endPointer(e) {
+  if (!pts.has(e.pointerId)) return;   // a finger on the card or menu: not ours
   const g = gesture;
   pts.delete(e.pointerId);
+  if (g?.tap2 && e.type === 'pointerup' && pts.size === 0 && performance.now() - g.tap2 < 350) {   // two-finger tap: zoom out about the fingers
+    zoomAbout(e.clientX, e.clientY, T.zoom / 2.2);
+    canvas.classList.remove('dragging'); gesture = null; return;
+  }
   if (g && !g.moved && e.type === 'pointerup' && pts.size === 0) {
     const now = performance.now();
     if (g.pin) { lastTap = null; openCluster(g.pin.cluster); }
@@ -1067,10 +1110,12 @@ function endPointer(e) {
   }
   canvas.classList.remove('dragging');
   gesture = null;
-  if (pts.size === 1) { const [p] = pts.values(); startGesture({ clientX: p.x, clientY: p.y, button: 0 }); gesture.moved = true; }
+  if (pts.size === 1) { const [p] = pts.values(); startGesture({ clientX: p.x, clientY: p.y, button: 0 }); gesture.moved = true; gesture.tap2 = g?.tap2; }
 }
-canvas.addEventListener('pointerup', endPointer);
-canvas.addEventListener('pointercancel', endPointer);
+addEventListener('pointerup', endPointer);
+addEventListener('pointercancel', endPointer);
+addEventListener('blur', resetPointers);   // app switch / system gesture mid-touch: start clean
+document.addEventListener('visibilitychange', resetPointers);
 let wheelTimer = 0;
 function wheel(e) {
   e.preventDefault();
@@ -1123,7 +1168,7 @@ function updateLight(tick) {
   const ph = phaseAt(clock);
   const [az, el] = sunAt(ph.clock);
   day = THREE.MathUtils.smoothstep(el, -3, 1); sunEl = el;
-  const key = dirOf(az + Math.sin(tick * 2.1) * .4, Math.max(el, 4)).lerp(dirOf(200, 35), 1 - day).normalize();   // moon at night
+  const key = dirOf(az + Math.sin(tick * 2.1) * .4 * (1 - U.uCalm.value), Math.max(el, 4)).lerp(dirOf(200, 35), 1 - day).normalize();   // moon at night
   const fill = new THREE.Vector3(0, 0, 1).addScaledVector(key.clone().setZ(0), -.35).normalize();               // sky, opposite the sun
   rain += ((rainOn ? 1 : 0) - rain) * .35;
   const r = rain;
@@ -1163,7 +1208,8 @@ function frame(now) {
   pose(C, camera);
   const sig = `${C.p.x.toFixed(2)},${C.p.y.toFixed(2)},${C.yaw.toFixed(3)},${C.pitch.toFixed(3)},${C.zoom.toFixed(4)}`;
   if (sig !== lastSig) { lastSig = sig; needRender = pinsDirty = true; camMoved = now; }
-  cloudMat.uniforms.uFade.value = 1 - THREE.MathUtils.smoothstep(C.zoom, 1.3, 2.4);
+  cloudMat.uniforms.uFade.value = 1 - THREE.MathUtils.smoothstep(C.zoom, 1.05, 1.5);   // gone before they fill the screen as a haze
+  U.uCalm.value = THREE.MathUtils.smoothstep(C.zoom, 1.3, 2.5);
   clouds.visible = cloudMat.uniforms.uFade.value > .01;
   if (deep) {
     if (camMoved >= lastDeep && now - lastDeep > 300) { lastDeep = now; deep.update(); }
@@ -1184,7 +1230,7 @@ function frame(now) {
   pu.uFocus.value = C.p.clone().project(camera).y * .5 + .5;
   renderer.setRenderTarget(sceneRT); renderer.render(world, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, quadCam);
-  if (!loaded) { loaded = true; $('load').classList.add('gone'); setTimeout(showHint, 900); }
+  if (!loaded) { loaded = true; $('load').classList.add('gone'); setTimeout(showHint, 900); window.kleiLoad.ready = true; dispatchEvent(new Event('klei:ready')); }
 }
 requestAnimationFrame(frame);
 window.__viewer = { pins: () => pins.filter((b) => !b.hidden).map((b) => ({ n: b.cluster.m.length, t: b.cluster.m.map((h) => h.titel), x: b.cluster.x, y: b.cluster.y, kind: b.dataset.kind })),

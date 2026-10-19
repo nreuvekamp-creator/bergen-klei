@@ -140,6 +140,8 @@
   #load .hand { font-size: 22px; }
   #err { position: fixed; inset: auto var(--gutter) 50% var(--gutter); text-align: center; color: #f6efe4; z-index: 11; }
 </style>
+<link rel="stylesheet" href="intro.css">
+<script src="intro.js"></script>
 <script type="importmap">
   { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
@@ -147,6 +149,7 @@
 </script>
 </head>
 <body>
+  <div id="intro"></div>
   <canvas id="c" aria-label="Kleien diorama van Bergen; slepen om te schuiven, knijpen of scrollen om te zoomen, met twee vingers of rechts slepen om te draaien"></canvas>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
