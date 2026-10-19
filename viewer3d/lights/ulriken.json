@@ -1,0 +1,242 @@
+{
+ "ulriken": {
+  "name": "Ulriken: TV-mast (Ulriksmasten) met Lysdansen",
+  "mast": {
+   "world_base": [
+    2410.06,
+    -1522.45,
+    725.87
+   ],
+   "height_m": 67.0,
+   "shaft_m": 30.0,
+   "glow_center": [
+    2410.06,
+    -1522.45,
+    759.87
+   ],
+   "glow_radius_m": 48.0
+  },
+  "points": [
+   {
+    "kind": "lysdans",
+    "world": [
+     2413.02,
+     -1519.49,
+     729.87
+    ],
+    "h": 0.06
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2407.1,
+     -1525.41,
+     729.87
+    ],
+    "h": 0.06
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2407.25,
+     -1519.64,
+     736.87
+    ],
+    "h": 0.164
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2412.87,
+     -1525.26,
+     736.87
+    ],
+    "h": 0.164
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2407.4,
+     -1525.11,
+     743.87
+    ],
+    "h": 0.269
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2412.72,
+     -1519.79,
+     743.87
+    ],
+    "h": 0.269
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2412.57,
+     -1524.96,
+     750.87
+    ],
+    "h": 0.373
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2407.55,
+     -1519.94,
+     750.87
+    ],
+    "h": 0.373
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2410.06,
+     -1522.45,
+     760.87
+    ],
+    "h": 0.522
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2410.06,
+     -1522.45,
+     766.87
+    ],
+    "h": 0.612
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2410.06,
+     -1522.45,
+     772.87
+    ],
+    "h": 0.701
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2410.06,
+     -1522.45,
+     778.87
+    ],
+    "h": 0.791
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2410.06,
+     -1522.45,
+     784.87
+    ],
+    "h": 0.881
+   },
+   {
+    "kind": "lysdans",
+    "world": [
+     2410.06,
+     -1522.45,
+     790.87
+    ],
+    "h": 0.97
+   },
+   {
+    "kind": "obstruction_flash",
+    "world": [
+     2410.06,
+     -1522.45,
+     793.47
+    ]
+   },
+   {
+    "kind": "obstruction_steady",
+    "world": [
+     2413.88,
+     -1518.63,
+     758.07
+    ]
+   },
+   {
+    "kind": "obstruction_steady",
+    "world": [
+     2406.24,
+     -1518.63,
+     758.07
+    ]
+   },
+   {
+    "kind": "obstruction_steady",
+    "world": [
+     2406.24,
+     -1526.27,
+     758.07
+    ]
+   },
+   {
+    "kind": "obstruction_steady",
+    "world": [
+     2413.88,
+     -1526.27,
+     758.07
+    ]
+   }
+  ],
+  "animation": {
+   "fps": 8,
+   "lysdans": {
+    "program": [
+     {
+      "name": "geel",
+      "seconds": 12,
+      "colors": [
+       "#ffd23a"
+      ]
+     },
+     {
+      "name": "paars",
+      "seconds": 12,
+      "colors": [
+       "#a05cff"
+      ]
+     },
+     {
+      "name": "regnboge",
+      "seconds": 12,
+      "colors": [
+       "#ff3b30",
+       "#ff9500",
+       "#ffd60a",
+       "#34c759",
+       "#00c7ff",
+       "#5856d6",
+       "#bf5af2"
+      ]
+     }
+    ],
+    "climb_seconds": 3.0,
+    "note": "kleuren klimmen op langs de mast (onder -> boven), daarna houden; regenboog als kolom die langzaam omhoog schuift"
+   },
+   "obstruction_flash": {
+    "color": "#ff2a1a",
+    "period_s": 1.5,
+    "on_s": 0.5,
+    "note": "middelsterk rood knipperlicht (aanname, ~40 per minuut)"
+   },
+   "obstruction_steady": {
+    "color": "#ff2a1a",
+    "note": "laag-intensief vast rood (aanname)"
+   },
+   "visibility": "nacht = vol, schemer = zwak, dag = uit (state.day)"
+  },
+  "sources": [
+   "https://no.wikipedia.org/wiki/Ulriken",
+   "https://www.nrk.no/vestland/ulriksmasta-lyser-igjen-1.17178010",
+   "https://www.bt.no/btmeninger/i/BxGr9/paletten-danser-igjen",
+   "https://www.ba.no/lysdansen-gjor-comeback/s/5-8-2853611"
+  ],
+  "provenance": "posities: mast uit DOM-DTM (Kartverket 1 m, top 67 m boven maaiveld op 60.37721 N 5.38135 E), centrum/patch/scripts/patch_prep.py"
+ }
+}
