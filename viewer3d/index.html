@@ -5,83 +5,140 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bergen, for Tess</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap">
 <style>
   :root {
-    --paper: #1b1714;        /* backdrop around the diorama */
-    --ink: #f6efe4;
-    --ink-soft: #cdbfae;
-    --glass: rgba(28, 22, 18, 0.62);
-    --glass-line: rgba(255, 240, 220, 0.14);
-    --accent: #f2b56b;       /* warm clay orange: slider, 'toerist' glow */
-    --accent-samen: #f19bb4; /* soft rose: 'samen' glow */
-    --radius: 16px;
+    --paper: #1b1714;        /* table around the diorama */
+    --cream: #f7f0e1;        /* prescription paper */
+    --cream-2: #efe5d0;
+    --ink: #2e2620;          /* ink on paper */
+    --ink-soft: #6f6253;
+    --rule: rgba(80, 60, 40, .16);
+    --stamp: #b5443a;        /* red ink stamp */
+    --pen: #23408e;          /* ballpoint blue, handwritten bits */
+    --accent: #d9783f;       /* terracotta clay: 'toerist' */
+    --accent-samen: #d9677f; /* rose clay: 'samen' */
+    --radius: 14px;
     --gutter: 16px;
+    --shadow: 0 1px 1px rgba(40, 25, 10, .18), 0 10px 30px -8px rgba(20, 10, 0, .45);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
     font: 15px/1.45 Inter, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
   canvas { position: fixed; inset: 0; width: 100vw; height: 100dvh; display: block; touch-action: none; cursor: grab; }
   canvas.dragging { cursor: grabbing; }
-  .panel { position: fixed; background: var(--glass); border: 1px solid var(--glass-line);
-    backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
-    border-radius: var(--radius); }
-  #title { top: max(var(--gutter), env(safe-area-inset-top)); left: var(--gutter); padding: 12px 16px 11px; max-width: calc(100vw - 2 * var(--gutter)); }
-  #title h1 { margin: 0; font: 600 22px/1.1 Fraunces, Georgia, serif; letter-spacing: 0.2px; }
-  #title p { margin: 3px 0 0; color: var(--ink-soft); font-size: 12.5px; }
-  #title .badge[hidden] { display: none; }
-  #title .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: rgba(242,181,107,.18); color: var(--accent); font-size: 11px; }
-  #time { left: 50%; transform: translateX(-50%); bottom: max(var(--gutter), env(safe-area-inset-bottom));
-    width: min(520px, calc(100vw - 2 * var(--gutter))); padding: 12px 16px 10px; }
-  #time .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  button { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  .paper { position: fixed; background: var(--cream); color: var(--ink); border-radius: var(--radius); box-shadow: var(--shadow);
+    background-image: radial-gradient(rgba(120, 90, 50, .05) 1px, transparent 1.2px); background-size: 5px 5px; }
+  .hand { font-family: Caveat, 'Bradley Hand', cursive; color: var(--pen); }
+
+  /* ---------- title card + menu ---------- */
+  #title { top: max(var(--gutter), env(safe-area-inset-top)); left: var(--gutter); width: max-content; max-width: min(440px, calc(100vw - 2 * var(--gutter))); padding: 10px 14px 12px 10px; z-index: 3; }
+  #title .top { display: flex; gap: 8px; align-items: flex-start; }
+  #menu-btn { flex: none; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--rule); background: rgba(255,255,255,.5); cursor: pointer; display: grid; place-items: center; padding: 0; }
+  #menu-btn svg { width: 18px; height: 18px; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; fill: none; }
+  #menu-btn[aria-expanded=true] { background: var(--cream-2); }
+  #title h1 { margin: 1px 0 0; font: 600 21px/1.1 Fraunces, Georgia, serif; letter-spacing: .2px; }
+  #title h1 .rx { font-weight: 500; color: var(--stamp); margin-right: 4px; }
+  #title p { margin: 2px 0 0; color: var(--ink-soft); font-size: 12.5px; }
+  #title .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: rgba(181,68,58,.12); color: var(--stamp); font-size: 11px; }
+  #legend { display: flex; flex-wrap: nowrap; gap: 6px; margin: 10px 0 0; }
+  @media (max-width: 420px) { #legend { flex-wrap: wrap; } }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px 5px 6px; white-space: nowrap; border-radius: 8px; border: 1px dashed rgba(80,60,40,.35);
+    background: transparent; color: var(--ink); font: 500 12px Inter, sans-serif; cursor: pointer; }
+  .chip svg { width: 16px; height: 18px; flex: none; }
+  .chip .box { width: 13px; height: 13px; border: 1.5px solid var(--ink-soft); border-radius: 3px; display: grid; place-items: center; font: 700 13px/1 Caveat, cursive; color: var(--pen); }
+  .chip[aria-pressed=true] .box::after { content: "✓"; transform: translate(1px, -2px) scale(1.4); }
+  .chip[aria-pressed=false] { color: var(--ink-soft); }
+  .chip[aria-pressed=false] svg { opacity: .4; filter: grayscale(1); }
+  #menu { top: calc(max(var(--gutter), env(safe-area-inset-top)) + 8px); left: var(--gutter); width: min(340px, calc(100vw - 2 * var(--gutter))); padding: 6px; z-index: 4;
+    transform-origin: top left; transition: opacity .18s, transform .18s; }
+  #menu.closed { opacity: 0; transform: translateY(-6px) scale(.98); pointer-events: none; }
+  #menu .row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 10px; border: 0; background: none; border-radius: 9px; cursor: pointer; text-align: left; font-size: 15px; }
+  #menu .row:hover { background: rgba(80,60,40,.06); }
+  #menu .row .ico { width: 22px; text-align: center; font-size: 17px; }
+  #menu .row .val { margin-left: auto; color: var(--ink-soft); font-variant-numeric: tabular-nums; font-size: 14px; }
+  #menu hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 8px; }
+  #menu .close-row { display: flex; justify-content: flex-end; padding: 2px 2px 0; }
+  #menu-close { width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(80,60,40,.07); cursor: pointer; font-size: 18px; line-height: 1; }
+  #timebox { padding: 2px 10px 10px 42px; }
+  #timebox .now { display: flex; align-items: baseline; justify-content: space-between; }
   #phase { font: 500 16px Fraunces, Georgia, serif; }
-  #time .right { display: inline-flex; align-items: center; gap: 10px; }
-  #rain { width: 30px; height: 26px; border-radius: 999px; border: 1px solid var(--glass-line); background: none; color: var(--ink-soft);
-    font: 15px/1 system-ui, sans-serif; cursor: pointer; padding: 0; }
-  #rain[aria-pressed=true] { background: rgba(160, 190, 230, .2); color: #cfe0f5; border-color: rgba(190, 215, 245, .45); }
-  #clock { color: var(--ink-soft); font-size: 12px; font-variant-numeric: tabular-nums; }
-  input[type=range] { width: 100%; margin: 6px 0 2px; accent-color: var(--accent); height: 24px; }
-  #stops { display: flex; justify-content: space-between; }
+  #clock { font: 600 15px Inter, sans-serif; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; margin: 8px 0 2px; accent-color: var(--accent); height: 28px; }
+  #stops { display: flex; justify-content: space-between; flex-wrap: wrap; }
   #stops button { background: none; border: 0; color: var(--ink-soft); font: 12px Inter, sans-serif; padding: 6px 2px; cursor: pointer; }
-  #stops button.on { color: var(--ink); }
-  #card { left: var(--gutter); bottom: calc(max(var(--gutter), env(safe-area-inset-bottom)) + 112px); width: min(360px, calc(100vw - 2 * var(--gutter)));
-    padding: 16px 18px 18px; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity .25s, transform .25s; }
-  #card.open { opacity: 1; transform: none; pointer-events: auto; }
-  #card h2 { margin: 0 28px 6px 0; font: 600 20px/1.2 Fraunces, Georgia, serif; }
-  #card p { margin: 0; color: var(--ink-soft); }
-  #card img { display: block; width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: 10px; margin-bottom: 12px; }
-  #card img[hidden] { display: none; }
-  #close { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border-radius: 50%; border: 0;
-    background: rgba(255,255,255,.08); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
-  #legend { display: flex; gap: 6px; margin-top: 9px; }
-  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 8px; border-radius: 999px;
-    border: 1px solid var(--glass-line); background: rgba(255,255,255,.06); color: var(--ink); font: 500 12px Inter, sans-serif; cursor: pointer; }
-  .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
-  .chip.samen::before { background: var(--accent-samen); box-shadow: 0 0 8px var(--accent-samen); }
-  .chip[aria-pressed=false] { color: var(--ink-soft); background: none; opacity: .6; }
-  .chip[aria-pressed=false]::before { box-shadow: none; }
-  .chip.static { cursor: default; margin-bottom: 10px; }
-  .chip[hidden] { display: none; }
-  #card-nav { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--glass-line); }
-  #card-nav[hidden] { display: none; }
-  #card-nav button { width: 36px; height: 32px; border-radius: 10px; border: 1px solid var(--glass-line); background: rgba(255,255,255,.06); cursor: pointer; }
-  #card-nav svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  #stops button.on { color: var(--ink); font-weight: 600; }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; border-radius: 999px; background: rgba(80,60,40,.22); transition: background .2s; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .2s; }
+  [aria-checked=true] > .switch { background: var(--accent); }
+  [aria-checked=true] > .switch::after { transform: translateX(18px); }
+  #auto { padding: 8px 0 4px; font-size: 13px; color: var(--ink-soft); }
+  #auto .lbl { flex: 1; }
+
+  /* ---------- prescription card ---------- */
+  #card { top: max(var(--gutter), env(safe-area-inset-top)); right: var(--gutter); width: 360px; max-height: calc(100dvh - 2 * var(--gutter));
+    overflow: auto; padding: 18px 20px 14px; opacity: 0; transform: translateX(16px) rotate(.6deg); pointer-events: none; transition: opacity .3s, transform .3s; z-index: 2;
+    border-top: 6px solid var(--accent); }
+  #card.samen { border-top-color: var(--accent-samen); }
+  #card.open { opacity: 1; transform: rotate(.6deg); pointer-events: auto; }
+  #card .head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); color: var(--ink-soft); font-size: 11.5px; letter-spacing: .4px; text-transform: uppercase; }
+  #card .head .rx { font: 600 30px/1 Fraunces, Georgia, serif; color: var(--stamp); text-transform: none; letter-spacing: 0; }
+  #card .head .who { flex: 1; }
+  #card .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+  #card-cat { flex: none; padding: 3px 8px 2px; border: 2px solid var(--stamp); border-radius: 6px; color: var(--stamp);
+    font: 700 10.5px/1.3 Inter, sans-serif; letter-spacing: 1.2px; text-transform: uppercase; transform: rotate(-7deg); opacity: .78; mix-blend-mode: multiply;
+    -webkit-mask-image: radial-gradient(circle at 30% 40%, #000 55%, rgba(0,0,0,.55) 100%); mask-image: radial-gradient(circle at 30% 40%, #000 55%, rgba(0,0,0,.55) 100%); max-width: 150px; text-align: center; }
+  #card h2 { margin: 14px 0 8px; font: 600 22px/1.2 Fraunces, Georgia, serif; }
+  #card .txt { margin: 0 0 10px; color: var(--ink); }
+  #card dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; padding: 10px 0 2px; border-top: 1px dashed var(--rule); font-size: 14px; }
+  #card dt { color: var(--ink-soft); font-size: 11.5px; letter-spacing: .5px; text-transform: uppercase; padding-top: 2px; }
+  #card dd { margin: 0; }
+  #card dd.hand { font-size: 21px; line-height: 1.05; }
+  #card img { display: block; width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: 8px; margin: 8px 0 10px; }
+  #card .sign { text-align: right; margin: 0 4px 0 0; white-space: nowrap; font-size: 19px; transform: rotate(-2deg); }
+  #close { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0;
+    background: rgba(80,60,40,.07); font-size: 20px; line-height: 1; cursor: pointer; }
+  #card-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+  #card-nav button { height: 36px; min-width: 40px; border-radius: 9px; border: 1px solid var(--rule); background: rgba(255,255,255,.55); cursor: pointer; padding: 0 10px; font-size: 13.5px; }
+  #card-nav svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; vertical-align: -1px; }
+  #back { margin-right: auto; }
   #count { color: var(--ink-soft); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-  #card-meta { margin-top: 10px !important; color: var(--ink) !important; font-size: 14px; }
-  #pins { position: fixed; inset: 0; pointer-events: none; }
-  #pins button { position: absolute; left: 0; top: 0; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; border-radius: 50%;
-    background: transparent; pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  #pins button[hidden] { display: none; }
-  #pins button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-  #pins .n:empty { display: none; }
-  #pins .n { position: absolute; right: -4px; top: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--glass);
-    border: 1px solid var(--glass-line); color: var(--ink); font: 600 11px/18px Inter, sans-serif; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-  #err { position: fixed; inset: auto var(--gutter) 50% var(--gutter); text-align: center; color: var(--ink-soft); }
-  @media (max-width: 600px) {
-    #card { left: 50%; transform: translate(-50%, 10px); }
-    #card.open { transform: translate(-50%, 0); }
-    #title h1 { font-size: 19px; }
+  @media (max-width: 759px) {
+    #card { top: auto; left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom)); width: auto; max-height: 56dvh; transform: translateY(24px); }
+    #card.open { transform: none; }
   }
+  @media (max-width: 420px) {
+    #title h1 { font-size: 19px; }
+    #card h2 { font-size: 19px; }
+  }
+
+  /* ---------- clay markers ---------- */
+  #pins { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
+  #pins button { position: absolute; left: 0; top: 0; width: 46px; height: 54px; margin: -50px 0 0 -23px; padding: 0; border: 0;
+    background: transparent; pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: none; }
+  #pins button svg { width: 100%; height: 100%; overflow: visible; transition: transform .2s; transform-origin: 50% 92%; filter: drop-shadow(0 2px 1.5px rgba(30, 15, 0, .35)); }
+  #pins button:hover svg { transform: scale(1.08); }
+  #pins button.sel svg { transform: scale(1.22); animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: scale(1.22) translateY(-3px); } }
+  #pins button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 8px; }
+
+  /* ---------- hint + loading ---------- */
+  #hint { left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: max-content; max-width: calc(100vw - 2 * var(--gutter));
+    padding: 10px 16px; font-size: 13.5px; text-align: center; transition: opacity .4s; z-index: 2; }
+  #hint.gone { opacity: 0; pointer-events: none; }
+  #load { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #2a221c; transition: opacity .6s; }
+  #load.gone { opacity: 0; pointer-events: none; }
+  #load .paper { position: static; width: min(360px, calc(100vw - 2 * var(--gutter))); padding: 22px 22px 20px; text-align: left; }
+  #load .rx { font: 600 40px/1 Fraunces, Georgia, serif; color: var(--stamp); }
+  #load h1 { margin: 6px 0 2px; font: 600 24px/1.15 Fraunces, Georgia, serif; }
+  #load p { margin: 0; color: var(--ink-soft); font-size: 13.5px; }
+  #load .bar { height: 10px; margin: 18px 0 8px; border-radius: 6px; background: var(--cream-2); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.12); }
+  #load .bar i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); border-radius: 6px; transition: transform .25s;
+    background: linear-gradient(180deg, #ec9a62, var(--accent) 60%, #b65d2b); }
+  #load .hand { font-size: 22px; }
+  #err { position: fixed; inset: auto var(--gutter) 50% var(--gutter); text-align: center; color: #f6efe4; z-index: 11; }
 </style>
 <script type="importmap">
   { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
@@ -90,30 +147,66 @@
 </script>
 </head>
 <body>
-  <canvas id="c" aria-label="Kleien diorama van Bergen; slepen om te schuiven, knijpen of scrollen om te zoomen, met twee vingers of rechts slepen om iets te draaien"></canvas>
-  <header id="title" class="panel">
-    <h1>Bergen, for Tess</h1>
-    <p><span id="sub">Bergen in klei</span>, tik op een plek<span id="badge" class="badge" hidden>testdata</span></p>
+  <canvas id="c" aria-label="Kleien diorama van Bergen; slepen om te schuiven, knijpen of scrollen om te zoomen, met twee vingers of rechts slepen om te draaien"></canvas>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <radialGradient id="gT" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#f4b383"/><stop offset=".55" stop-color="#d9783f"/><stop offset="1" stop-color="#9c4a22"/></radialGradient>
+      <radialGradient id="gS" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#f6b8c4"/><stop offset=".55" stop-color="#d9677f"/><stop offset="1" stop-color="#97384f"/></radialGradient>
+      <radialGradient id="gC" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fffaf0"/><stop offset=".6" stop-color="#efe3cb"/><stop offset="1" stop-color="#b9a582"/></radialGradient>
+      <linearGradient id="gPole" x1="0" x2="1"><stop offset="0" stop-color="#cdbfa8"/><stop offset="1" stop-color="#7d6d58"/></linearGradient>
+      <filter id="clay" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/>
+        <feDisplacementMap in="SourceGraphic" scale="1.3"/></filter>
+    </defs>
+  </svg>
+  <header id="title" class="paper">
+    <div class="top">
+      <button id="menu-btn" aria-label="Menu: tijd en regen" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 18 18"><path d="M3 5h12M3 9h12M3 13h12"/></svg></button>
+      <div>
+        <h1><span class="rx">℞</span>Bergen, for Tess</h1>
+        <p><span id="sub">Recept voor 20 t/m 24 oktober</span><span id="badge" class="badge" hidden>testdata</span></p>
+      </div>
+    </div>
     <div id="legend" aria-label="Toon categorie"></div>
   </header>
-  <aside id="card" class="panel" aria-live="polite">
+  <nav id="menu" class="paper closed" aria-label="Menu">
+    <div class="close-row"><button id="menu-close" aria-label="Menu sluiten">×</button></div>
+    <button class="row" id="time-row" aria-expanded="false" aria-controls="timebox"><span class="ico">◷</span>Tijd<span class="val" id="time-val"></span></button>
+    <div id="timebox" hidden>
+      <div class="now"><span id="phase">Gouden uur</span><span id="clock"></span></div>
+      <input id="slider" type="range" min="0" max="1435" step="5" value="1045" aria-label="Tijd van de dag">
+      <div id="stops"></div>
+      <button class="row" id="auto" role="switch" aria-checked="true"><span class="lbl">Automatisch: echte tijd in Bergen</span><span class="switch"></span></button>
+    </div>
+    <hr>
+    <button class="row" id="rain" role="switch" aria-checked="false"><span class="ico">☂</span>Regen<span class="val" id="rain-val"></span><span class="switch"></span></button>
+  </nav>
+  <aside id="card" class="paper" aria-live="polite">
+    <div class="head"><span class="rx">℞</span><span class="who">Recept, Bergen</span><span>okt 2026</span></div>
     <button id="close" aria-label="Sluiten">×</button>
-    <span id="card-cat" class="chip static" hidden></span>
-    <img id="card-img" alt="" hidden>
     <h2 id="card-title"></h2>
-    <p id="card-text"></p>
-    <p id="card-meta" hidden></p>
-    <nav id="card-nav" hidden>
+    <div id="card-body">
+      <img id="card-img" alt="" hidden>
+      <p class="txt" id="card-text"></p>
+      <dl id="card-dl"></dl>
+    </div>
+    <div class="foot"><span id="card-cat"></span><p class="sign hand">voorgeschreven door Niels</p></div>
+    <nav id="card-nav">
+      <button id="back" aria-label="Terug naar het overzicht"><svg viewBox="0 0 12 12"><path d="M8 2 L3 6 L8 10"/></svg> Terug</button>
       <button id="prev" aria-label="Vorige plek"><svg viewBox="0 0 12 12"><path d="M8 2 L3 6 L8 10"/></svg></button>
       <span id="count"></span>
       <button id="next" aria-label="Volgende plek"><svg viewBox="0 0 12 12"><path d="M4 2 L9 6 L4 10"/></svg></button>
     </nav>
   </aside>
-  <section id="time" class="panel">
-    <div class="row"><span id="phase">Gouden uur</span><span class="right"><span id="clock"></span><button id="rain" aria-pressed="false" aria-label="Regen aan of uit" title="Regen">☂</button></span></div>
-    <input id="slider" type="range" min="0" max="4" step="0.01" value="2" aria-label="Tijd van de dag">
-    <div id="stops"></div>
-  </section>
+  <div id="hint" class="paper gone" role="status"></div>
+  <div id="load" role="progressbar" aria-label="Laden" aria-valuemin="0" aria-valuemax="100">
+    <div class="paper">
+      <div class="rx">℞</div>
+      <h1>Bergen, for Tess</h1>
+      <p>Het recept wordt klaargemaakt: de hele stad in klei, tot op de dakpan.</p>
+      <div class="bar"><i id="load-bar"></i></div>
+      <span class="hand" id="load-pct">even geduld</span>
+    </div>
+  </div>
   <p id="err" hidden></p>
   <script type="module" src="main.js"></script>
 </body>

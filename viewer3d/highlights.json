@@ -1,5 +1,5 @@
 {
-  "_uitleg": "Eén item per plek. Koppeling: 'plek' (sleutel of naam van een plek in meta.json: landmarks/plekken/offscreen), anders 'lat'/'lon' (omgerekend via de plekken in meta.json). Alleen plekken die in de render liggen worden getoond. 'categorie': toerist of samen. 'weer' (regen/zon) komt als tekst in het kaartje. 'foto' (url) is optioneel.",
+  "_uitleg": "Eén item per plek. Koppeling: 'plek' (sleutel of naam van een plek in meta.json: landmarks/plekken/offscreen), anders 'lat'/'lon' (omgerekend via de plekken in meta.json). Alleen plekken die in de render liggen worden getoond. 'categorie': toerist of samen. 'weer' (regen/zon) komt als tekst in het kaartje. 'foto' (url) is optioneel. Recept-velden (optioneel): 'dosering' (handgeschreven 'Sig.'-regel), 'waar', 'wanneer'.",
   "items": [
     {
       "titel": "Bryggen bezoeken",
@@ -9,7 +9,9 @@
       "plek": "bryggen",
       "lat": 60.3975,
       "lon": 5.3245,
-      "categorie": "toerist"
+      "categorie": "toerist",
+      "dosering": "1 keer per bezoek, rustig doorlopen. Mag bij regen.",
+      "waar": "Bryggen, de oostkant van Vågen"
     },
     {
       "titel": "Vismarkt, klassiek visbrød",
@@ -19,7 +21,9 @@
       "plek": "fisketorget",
       "lat": 60.3948,
       "lon": 5.3248,
-      "categorie": "toerist"
+      "categorie": "toerist",
+      "dosering": "Bij trek: 1 visbrød, warm innemen.",
+      "waar": "Fisketorget, aan Torget"
     },
     {
       "titel": "Vågal",
@@ -29,7 +33,9 @@
       "plek": "vagal",
       "lat": 60.3955,
       "lon": 5.3268,
-      "categorie": "samen"
+      "categorie": "samen",
+      "dosering": "1 matcha, langzaam innemen op een loungebank.",
+      "waar": "Kong Oscars gate 10"
     },
     {
       "titel": "Hotdog eten",
@@ -39,7 +45,9 @@
       "plek": "hotdog",
       "lat": 60.3946,
       "lon": 5.3256,
-      "categorie": "toerist"
+      "categorie": "toerist",
+      "dosering": "Eenmalig, ter kennismaking. Niet herhalen.",
+      "waar": "Rond Torget en Fisketorget"
     },
     {
       "titel": "Sandviksbatteriet",
@@ -49,7 +57,9 @@
       "lat": 60.4105,
       "lon": 5.32,
       "categorie": "toerist",
-      "plek": "sandviksbatteriet"
+      "plek": "sandviksbatteriet",
+      "dosering": "Bij droog weer, met uitzicht. Warme jas aanbevolen.",
+      "waar": "Boven Sandviken"
     },
     {
       "titel": "Café Klee",
@@ -59,7 +69,9 @@
       "lat": 60.3885,
       "lon": 5.324,
       "categorie": "samen",
-      "plek": "klee"
+      "plek": "klee",
+      "dosering": "Naar behoefte; herhaalrecept.",
+      "waar": "Herman Foss gate 12"
     },
     {
       "titel": "Floating sauna Heit",
@@ -69,7 +81,9 @@
       "lat": 60.3825,
       "lon": 5.3225,
       "categorie": "samen",
-      "plek": "heit"
+      "plek": "heit",
+      "dosering": "Afwisselend warm en koud, tot je je beter voelt.",
+      "waar": "Marineholmen"
     },
     {
       "titel": "Bordspelavond",
@@ -79,7 +93,10 @@
       "lat": 60.399,
       "lon": 5.311,
       "categorie": "samen",
-      "plek": "nordnes_bydelshus"
+      "plek": "nordnes_bydelshus",
+      "dosering": "Woensdagavond, met thee en nieuwe mensen.",
+      "waar": "Nordnes Bydelshus",
+      "wanneer": "Woensdag 21 oktober"
     },
     {
       "titel": "Ulriken",
@@ -89,7 +106,9 @@
       "plek": "ulriken_top",
       "lat": 60.3779,
       "lon": 5.3866,
-      "categorie": "toerist"
+      "categorie": "toerist",
+      "dosering": "1 keer omhoog. Terug mag met de kabelbaan.",
+      "waar": "Ulriken, dalstation van de kabelbaan bij Haukeland"
     },
     {
       "titel": "Løvstien",
@@ -99,7 +118,9 @@
       "plek": "lovstien",
       "lat": 60.3725,
       "lon": 5.333,
-      "categorie": "samen"
+      "categorie": "samen",
+      "dosering": "Bij droog weer, in eigen tempo.",
+      "waar": "Langs de flank van Løvstakken"
     }
   ]
 }

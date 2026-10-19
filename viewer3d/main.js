@@ -6,30 +6,69 @@ import { decode as decodePng } from 'fast-png';
 
 // Camera projection (DuneCrawl-style): the Blender passes are projected from the render camera onto a low-poly
 // proxy (scene.glb), so panning/zooming/turning a little gives real parallax. See research-projectie/PROJECTIE.md.
+//
+// WATER HOOK (full contract: WATER-CONTRACT.md). If ./water.js exists it is imported and
+//   const w = await createWater(ctx)  ->  { mesh?, update(dt, state) -> true to keep rendering at full rate, dispose() }
+// replaces the built-in water (the glb water meshes are hidden when w.mesh is given, unless w.keepOriginal).
+// Any import/create/update error falls back to the built-in water. ?water=0 skips the hook.
+// LIGHTS HOOK: ./lights.js createLights(ctx) -> { group, update(dt, state), dispose }, same ctx/state; fails = no lights. ?lights=0 skips it.
+//   ctx:   THREE, renderer, scene, camera, root (glb scene), waterMeshes, uniforms (U: projected passes + light),
+//          projector (render camera), depthTexture (+ near/far in uniforms.uNF), box, tableZ, tile, target0,
+//          metresPerTexel, small, FPS, shader: { COMMON, TONE }
+//   state: time (s), dt (s), tick (8 fps stop-motion counter), clock (Bergen hours 0-24 as shown),
+//          sunDir (world, toward the key light: sun or moon), sunElevation (deg), day (0 night .. 1 day),
+//          keyColor, fillColor, ambient (linear RGB Vector3), fillDir, rain (0..1, eased), camera, zoom
+//   World: Blender metres, Z up, x east, y north.
 const $ = (id) => document.getElementById(id);
 const Q = new URLSearchParams(location.search);
 const coarse = matchMedia('(pointer: coarse)').matches;
 const small = coarse || Math.min(innerWidth, innerHeight) < 700;
 const FPS = 8;                                          // stop-motion rate for light, boil, grain, rain, clouds (camera stays smooth)
 const DPR = Math.min(devicePixelRatio || 1, +(Q.get('dpr') || 1.5));
-const MAX_HI = 16;
-let SET = Q.get('set') || 'lo';                          // start with lo everywhere; desktop swaps in hi once it has arrived
+let SET = Q.get('set') || 'lo';                          // lo + deep-zoom tiles cover every zoom level (hi would duplicate tile level 1)
 const DRACO = 'https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/libs/draco/gltf/';
 const deg = Math.PI / 180;
 
-// ---------- data ----------
+// ---------- loading: everything up front (also every deep-zoom tile), with a progress bar ----------
+const prog = { got: new Map(), tot: new Map() };
+function bar() {
+  let g = 0, t = 0;
+  for (const [k, v] of prog.tot) { t += v; g += Math.min(v, prog.got.get(k) || 0); }
+  const f = t ? g / t : 0;
+  $('load-bar').style.transform = `scaleX(${f})`;
+  $('load-pct').textContent = `${Math.round(f * 100)}%`;
+  $('load').setAttribute('aria-valuenow', Math.round(f * 100));
+}
+async function getBlob(url, est = 4e5) {   // fetch with byte progress
+  prog.tot.set(url, est); prog.got.set(url, 0);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url} ${r.status}`);
+  const n = +r.headers.get('content-length');
+  if (n) { prog.tot.set(url, n); bar(); }
+  let b;
+  if (r.body?.getReader) {
+    const rd = r.body.getReader(), parts = [];
+    let got = 0;
+    for (;;) { const { done, value } = await rd.read(); if (done) break; parts.push(value); got += value.length; prog.got.set(url, got); bar(); }
+    b = new Blob(parts, { type: r.headers.get('content-type') || '' });
+  } else b = await r.blob();
+  prog.tot.set(url, b.size); prog.got.set(url, b.size); bar();
+  return b;
+}
 const loader = new THREE.TextureLoader();
-const tex = (url, color) => loader.loadAsync(url).then((t) => {
-  t.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-  t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4;
-  return t;
-});
+const tex = (blob, color) => {
+  const u = URL.createObjectURL(blob);
+  return loader.loadAsync(u).then((t) => {
+    URL.revokeObjectURL(u);
+    t.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4;
+    return t;
+  });
+};
 const optional = (p) => p.catch(() => null);
 // 16-bit PNG lightmaps are decoded in JS (the browser would squash them to 8 bit)
-async function png(url) {
-  const r = await fetch(url, { cache: 'no-cache' });
-  if (!r.ok) throw new Error(`${url} ${r.status}`);
-  const p = decodePng(new Uint8Array(await r.arrayBuffer()));
+async function png(blob) {
+  const p = decodePng(new Uint8Array(await blob.arrayBuffer()));
   return { w: p.width, h: p.height, ch: p.channels ?? p.data.length / (p.width * p.height), max: 2 ** p.depth - 1, data: p.data };
 }
 function floatTex(p, chans) {   // rows flipped so uv (0,0) is bottom-left like TextureLoader
@@ -43,10 +82,14 @@ function floatTex(p, chans) {   // rows flipped so uv (0,0) is bottom-left like 
   t.needsUpdate = true;
   return t;
 }
+// which deep-zoom tiles exist: complete_levels have all, partial_levels list "x_y"; without that info every tile is assumed present
+const tileAvail = (TL, z, x, y) => !TL.complete_levels && !TL.partial_levels
+  || (TL.complete_levels || []).includes(z) || !!TL.partial_levels?.[z]?.includes(`${x}_${y}`);
 
-// Data layout (renders-centrum and testdata): meta.json, scene.glb, ground_top.png, hi/ and lo/ with albedo, lightmap, windows.
+// Data layout (renders-centrum and testdata): meta.json, scene.glb, ground_top, lo/ (and hi/) with albedo, lightmap, windows, tiles/.
 // File names come from meta.passes when it lists them, so only existing files are requested (no 404s).
 async function loadSet(base) {
+  prog.got.clear(); prog.tot.clear();
   const meta = await fetch(`${base}/meta.json`, { cache: 'no-cache' }).then((r) => {
     if (!r.ok) throw new Error(`${base}/meta.json ${r.status}`);
     return r.json();
@@ -55,18 +98,37 @@ async function loadSet(base) {
   const file = (n, ext = '.png') => names.find((k) => k.startsWith(n + '.')) || n + ext;
   const has = (n) => !meta.passes || names.some((k) => k.startsWith(n + '.'));
   const lmDesc = meta.passes?.[file('lightmap')] || '';
-  const passes = (set) => {   // albedo, lightmap, windows (+ ground_top on hi) of one resolution set
-    const dir = `${base}/${set}`, lmUrl = `${dir}/${file('lightmap')}`;
-    return Promise.all([
-      tex(`${dir}/${file('albedo')}`, true),
-      /16-bit/i.test(lmDesc) ? png(lmUrl).then((p) => floatTex(p, 4)) : tex(lmUrl, /srgb/i.test(lmDesc)),
-      has('windows') ? optional(tex(`${dir}/${file('windows')}`)) : null,
-      has('ground_top') && set === 'hi' ? optional(tex(`${base}/${file('ground_top')}`, true)) : null,   // ponytail: phones skip it (MBs) and show plain clay in revealed strips
-    ]).then(([alb, lm, win, ground]) => { if (ground) ground.flipY = false; return { alb, lm, win, ground }; });   // ground: glTF uv (top-left origin)
-  };
+  const dir = `${base}/${SET}`;
+  // tiles: all compressed files in memory now (~30 MB); decoded one by one later, only what the screen needs
+  const TL = meta.tiles || (Q.has('tiles') ? meta.tiles_test : null);
+  const tiles = new Map();
+  const tileJobs = [];
+  if (TL) {
+    const passList = (Array.isArray(TL.passes) ? TL.passes : Object.keys(TL.passes || { albedo: 1, lightmap: 1 })).filter((p) => p === 'albedo' || p === 'lightmap');
+    const tpl = (pass) => ((TL.passes && !Array.isArray(TL.passes) && typeof TL.passes[pass] === 'string') ? TL.passes[pass]
+      : TL.template || TL.path || TL.url || 'tiles/{pass}/{z}/{x}_{y}.png').split(' ')[0];
+    const lv = TL.max_z ?? TL.z_max ?? TL.levels ?? 0;
+    const maxZ = Array.isArray(lv) ? Math.max(...lv.map((l) => +(l.z ?? l))) : +lv;
+    for (const pass of passList) for (let z = 1; z <= maxZ; z++) for (let y = 0; y < 2 ** z; y++) for (let x = 0; x < 2 ** z; x++) {
+      if (!tileAvail(TL, z, x, y)) continue;
+      const u = `${base}/${tpl(pass).replace('{pass}', pass).replace('{z}', z).replace('{x}', x).replace('{y}', y)}`;
+      tileJobs.push(getBlob(u, 5e5).then((b) => tiles.set(`${pass}/${z}/${x}_${y}`, b), () => {}));   // a missing tile falls back to its parent
+    }
+  }
   const gltfLoader = new GLTFLoader().setDRACOLoader(new DRACOLoader().setDecoderPath(DRACO));
-  const [first, gltf] = await Promise.all([passes(SET), gltfLoader.loadAsync(`${base}/${file('scene', '.glb')}`)]);
-  return { base, meta, ...first, gltf, passes };
+  const [alb, lm, win, ground, gltf] = await Promise.all([
+    getBlob(`${dir}/${file('albedo')}`, 2e6).then((b) => tex(b, true)),
+    getBlob(`${dir}/${file('lightmap')}`, 2e6).then((b) => /16-bit/i.test(lmDesc) ? png(b).then((p) => floatTex(p, 4)) : tex(b, /srgb/i.test(lmDesc))),
+    has('windows') ? optional(getBlob(`${dir}/${file('windows')}`, 3e5).then((b) => tex(b))) : null,
+    has('ground_top') ? optional(getBlob(`${base}/${file('ground_top')}`, 2e6).then((b) => tex(b, true))) : null,
+    getBlob(`${base}/${file('scene', '.glb')}`, 4.5e6).then(async (b) => {
+      const u = URL.createObjectURL(b);
+      try { return await gltfLoader.loadAsync(u); } finally { URL.revokeObjectURL(u); }
+    }),
+    ...tileJobs,
+  ]);
+  if (ground) ground.flipY = false;   // glTF uv (top-left origin)
+  return { base, meta, alb, lm, win, ground, gltf, tiles };
 }
 
 let data;
@@ -77,7 +139,6 @@ try { data = await loadSet(wanted); } catch (e) {
 }
 const isTest = data.base === 'testdata';
 $('badge').hidden = !isTest;
-if (isTest) $('sub').textContent = 'Bryggen in klei';
 const { meta } = data;
 let IW = data.alb.image.width, IH = data.alb.image.height;
 
@@ -274,13 +335,15 @@ void main(){
   float fres = pow(1. - max(dot(n, V), 0.), 3.) * up;
   float wetSpot = .6 + .4 * vnoise(vW.xy / 3.);
   col += uRain * wetSpot * (uKeyCol * spec * .35 + (uAmb * 2.5 + uFillCol * .35) * fres * .45);
-  if (uKind == 2 && uRain > 0.) {                     // rain rings on the water, on the stop-motion clock
-    vec2 q = vW.xy / uCell; vec2 c = floor(q), f = fract(q) - .5;
-    float h = hash(c), t = fract(uTick / 10. + h);
+  if (uKind == 2 && uRain > 0.) {                     // rain rings on the water at real scale: up to ~2 m across, only seen up close
+    float mpp = length(fwidth(vW.xy));                 // metres per screen pixel here
+    vec2 q = vW.xy / 4.; vec2 c = floor(q), f = fract(q) - .5;
+    float h = hash(c), t = fract(uTick / 6. + h);
     vec2 o = vec2(hash(c + 3.1), hash(c + 7.7)) - .5;
-    float d = length(f - o * .5);
-    float ring = smoothstep(.045, 0., abs(d - t * .4)) * (1. - t) * step(hash(c + floor(uTick / 10. + h)), .3);
-    col += (uAmb * 3. + uFillCol * .5 + .02) * ring * uRain * 1.4;
+    float d = length(f - o * .5) * 4.;                 // metres from the drop
+    float w = max(.07, mpp * .8);
+    float ring = smoothstep(w, 0., abs(d - t * 1.1)) * (1. - t) * step(hash(c + floor(uTick / 6. + h)), .45);
+    col += (uAmb * 3. + uFillCol * .5 + .02) * ring * uRain * .9 * smoothstep(.45, .15, mpp);
   }
 
   // night: lamp spill on facades + projected window panes (alpha feeds the bloom)
@@ -309,19 +372,12 @@ const ATLAS = Math.min(small ? 3072 : 4096, renderer.capabilities.maxTextureSize
 const deep = TL ? (() => {
   const passList = (Array.isArray(TL.passes) ? TL.passes : Object.keys(TL.passes || { albedo: 1, lightmap: 1 })).filter((p) => p === 'albedo' || p === 'lightmap');
   // template: meta.tiles.template / path ('tiles/{pass}/{z}/{x}_{y}.png (+ .webp)': the first word counts)
-  const tpl = (pass) => ((TL.passes && !Array.isArray(TL.passes) && typeof TL.passes[pass] === 'string') ? TL.passes[pass]
-    : TL.template || TL.path || TL.url || 'tiles/{pass}/{z}/{x}_{y}.png').split(' ')[0];
-  const url = (pass, z, x, y) => `${data.base}/${tpl(pass).replace('{pass}', pass).replace('{z}', z).replace('{x}', x).replace('{y}', y)}`;
   const ts = TL.tile_size || TL.size || [2560, 1440];
   const [TW, TH] = Array.isArray(ts) ? ts : [ts, Math.round(ts * IH / IW)];
   const lv = TL.max_z ?? TL.z_max ?? TL.levels ?? 0;
   const maxZ = Array.isArray(lv) ? Math.max(...lv.map((l) => +(l.z ?? l))) : +lv;
   // which tiles exist: complete_levels have all, partial_levels list "x_y"; without that info every tile is assumed present
-  const avail = (z, x, y) => {
-    if (!TL.complete_levels && !TL.partial_levels) return true;
-    return (TL.complete_levels || []).includes(z) || !!TL.partial_levels?.[z]?.includes(`${x}_${y}`);
-  };
-  const hiW = small ? 0 : meta.resolution?.hi?.[0] || meta.sets?.hi?.[0] || 0;   // desktop swaps in hi soon: tiles must beat that
+  const avail = (z, x, y) => data.tiles.has(`${passList[0]}/${z}/${x}_${y}`);   // preloaded at start
   const best = (z, x, y) => { for (let k = 0; z - k >= 1; k++) if (avail(z - k, x >> k, y >> k)) return z - k; return 0; };   // missing tile: fall back to its parent
   const layers = {};
   for (const pass of passList) {
@@ -331,15 +387,23 @@ const deep = TL ? (() => {
     t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4;
     layers[pass] = { ctx: cv.getContext('2d'), t };
   }
-  const cache = new Map(), loading = new Set(), failed = new Set(), LRU = small ? 16 : 40;
-  let cur = null, dirty = false, lastUp = 0, lastUv = null;
-  function fetchTile(pass, z, x, y) {
+  // decoded tiles, at the size their atlas slot needs (a full 2560x1440 tile is 15 MB of RAM); budget in bytes, so the
+  // tiles of the current region always fit (the atlas itself is at most 2 x ATLAS^2 x 4 bytes) and nothing thrashes
+  const cache = new Map(), loading = new Set(), failed = new Set(), BUDGET = (small ? 160 : 480) * 2 ** 20;
+  let cur = null, dirty = false, lastUp = 0, lastUv = null, bytes = 0;
+  function fetchTile(pass, z, x, y, w) {
     const k = `${pass}/${z}/${x}_${y}`;
-    if (cache.has(k) || loading.has(k) || failed.has(k)) return;
+    w = Math.min(TW, Math.ceil(w));
+    if ((cache.get(k)?.width ?? 0) >= w - 1 || loading.has(k) || failed.has(k)) return;
     loading.add(k);
-    fetch(url(pass, z, x, y)).then((r) => { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(createImageBitmap).then((b) => {
-      cache.set(k, b);
-      while (cache.size > LRU) { const [ok, ob] = cache.entries().next().value; cache.delete(ok); ob.close?.(); }
+    const blob = data.tiles.get(k);
+    if (!blob) { failed.add(k); loading.delete(k); return; }
+    const opt = w < TW ? { resizeWidth: w, resizeHeight: Math.round(w * TH / TW), resizeQuality: 'high' } : undefined;
+    createImageBitmap(blob, opt).then((b) => {
+      const old = cache.get(k);
+      if (old) { cache.delete(k); bytes -= old.width * old.height * 4; old.close?.(); }
+      cache.set(k, b); bytes += b.width * b.height * 4;
+      while (bytes > BUDGET && cache.size > 1) { const [ok, ob] = cache.entries().next().value; cache.delete(ok); bytes -= ob.width * ob.height * 4; ob.close?.(); }
       redraw();
     }).catch(() => failed.add(k)).finally(() => loading.delete(k));
   }
@@ -353,7 +417,7 @@ const deep = TL ? (() => {
       for (let y = y0; y < y0 + rr; y++) for (let x = x0; x < x0 + rc; x++) {
         const zb = best(z, x, y);
         if (!zb) continue;
-        fetchTile(pass, zb, x >> (z - zb), y >> (z - zb));
+        fetchTile(pass, zb, x >> (z - zb), y >> (z - zb), W * 2 ** (z - zb));
         for (let zz = zb; zz >= 1; zz--) {
           const k = z - zz, key = `${pass}/${zz}/${x >> k}_${y >> k}`, b = cache.get(key);
           if (!b || !avail(zz, x >> k, y >> k)) continue;
@@ -395,7 +459,7 @@ const deep = TL ? (() => {
       const W = Math.min(TW, Math.floor(ATLAS / rc), Math.floor(ATLAS / rr * TW / TH)), H = Math.floor(W * TH / TW);   // tiles shrink to fit the atlas
       let any = false;
       for (let y = y0; y < y0 + rr && !any; y++) for (let x = x0; x < x0 + rc && !any; x++) any = avail(z, x, y);
-      if (!any || W * n <= Math.max(Math.max(IW, hiW) * 1.05, (reg?.W || 0) * (reg?.n || 0) * 1.05)) continue;   // nothing sharper here
+      if (!any || W * n <= Math.max(IW * 1.05, (reg?.W || 0) * (reg?.n || 0) * 1.05)) continue;   // nothing sharper here
       reg = { z, n, x0, y0, rc, rr, W, H, sw: W, sh: H };
       if (W * n >= need * 1.25) break;   // a bit of oversampling: prefer the deeper level
     }
@@ -414,8 +478,9 @@ const deep = TL ? (() => {
     if (!dirty || now - lastUp < 150) return;
     dirty = false; lastUp = now;
     for (const l of Object.values(layers)) l.t.needsUpdate = true;
+    return true;
   }
-  return { layers, update, upload, state: () => cur && { z: cur.z, x0: cur.x0, y0: cur.y0, rc: cur.rc, rr: cur.rr, slot: cur.W, cached: cache.size, failed: failed.size, uv: lastUv?.map((v) => +v.toFixed(3)) } };
+  return { layers, update, upload, state: () => cur && { z: cur.z, x0: cur.x0, y0: cur.y0, rc: cur.rc, rr: cur.rr, slot: cur.W, cached: cache.size, cachedMB: Math.round(bytes / 2 ** 20), failed: failed.size, uv: lastUv?.map((v) => +v.toFixed(3)) } };
 })() : null;
 U.tAlbD.value = deep?.layers.albedo?.t || null; U.tLmD.value = deep?.layers.lightmap?.t || null;
 
@@ -471,30 +536,31 @@ world.overrideMaterial = new THREE.ShaderMaterial({ uniforms: U, side: THREE.Dou
 renderer.setRenderTarget(depthRT); renderer.render(world, projCam); renderer.setRenderTarget(null);
 world.overrideMaterial = null;
 
-// ---------- rain clouds: cotton-wool tufts hanging over the back of the diorama ----------
+// ---------- clouds: cotton-wool tufts drifting over the diorama; some float in the foreground now and then.
+// Clearly there when zoomed out, they fade away as you zoom in (uFade). Rain makes them greyer, not more.
 const clouds = new THREE.Group();
 world.add(clouds);
 const cloudMat = new THREE.ShaderMaterial({
-  uniforms: { uKeyDir: U.uKeyDir, uLight: { value: new THREE.Vector3(1, 1, 1) }, uTick: U.uTick },
+  uniforms: { uKeyDir: U.uKeyDir, uLight: { value: new THREE.Vector3(1, 1, 1) }, uTick: U.uTick, uFade: { value: 1 }, uGrey: { value: 0 } },
   vertexShader: `varying vec3 vW, vN; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal);
     gl_Position = projectionMatrix * viewMatrix * w; }`,
-  fragmentShader: `precision highp float; varying vec3 vW, vN; uniform vec3 uKeyDir, uLight; uniform float uTick;
+  fragmentShader: `precision highp float; varying vec3 vW, vN; uniform vec3 uKeyDir, uLight; uniform float uTick, uFade, uGrey;
     ${COMMON}
     void main(){ vec3 n = normalize(vN);
       float fuzz = vnoise(vW.xy * .35 + vW.z * .3 + mod(uTick, 3.) * 13.) * .14 + vnoise(vW.xy * 2.1 + vW.z) * .06;   // felt/cotton fibres, boiling at 8 fps
       float l = clamp(.55 + .45 * n.z + .25 * dot(n, uKeyDir) - fuzz, 0., 1.);
-      vec3 c = mix(vec3(.42, .45, .52), vec3(.97, .96, .93), l) * uLight;
-      gl_FragColor = vec4(pow(c, vec3(1. / 2.2)), .8); }`,
+      vec3 c = mix(mix(vec3(.42, .45, .52), vec3(.97, .96, .93), l), mix(vec3(.30, .32, .37), vec3(.70, .72, .76), l), uGrey) * uLight;
+      gl_FragColor = vec4(pow(c, vec3(1. / 2.2)), .82 * uFade); }`,
   transparent: true, depthWrite: false, blending: THREE.CustomBlending,     // see-through a little; keep the bloom alpha of what is behind
   blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
 });
-const uiRects = () => ['title', 'time', 'card'].map((id) => $(id)).filter((e) => e.id !== 'card' || e.classList.contains('open')).map((e) => e.getBoundingClientRect());
 {
   const rnd = (() => { let s = 7; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
   const sizeM = (tanY * target0.distanceTo(projCam.position)) * 2;   // image height in metres at the target
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
+    const front = i >= 5;                     // 3 of 8 drift low over the city, in front
     const parts = [];
-    const n = 4 + Math.floor(rnd() * 3), r0 = sizeM * (.02 + rnd() * .012);
+    const n = 4 + Math.floor(rnd() * 3), r0 = sizeM * (.02 + rnd() * .012) * (front ? 1.25 : 1);
     for (let j = 0; j < n; j++) {
       const g = new THREE.IcosahedronGeometry(r0 * (.55 + rnd() * .5), 4);
       const p = g.attributes.position, ph = rnd() * 9;
@@ -509,21 +575,17 @@ const uiRects = () => ['title', 'time', 'card'].map((id) => $(id)).filter((e) =>
     }
     const m = new THREE.Mesh(mergeGeometries(parts), cloudMat);
     m.rotation.z = Math.atan2(projCam.matrixWorld.elements[1], projCam.matrixWorld.elements[0]);   // long side along the image x axis
-    m.userData = { u: (i + rnd() * .6) / 6, v: .5 + rnd() * .14, lift: sizeM * (.09 + rnd() * .06), speed: .003 + rnd() * .003, r: r0 * 2.2, s: 0 };
+    // u: start across the image; v: height in the image (front ones low = near the viewer); one crossing takes 2-5 minutes
+    m.userData = front
+      ? { u: rnd() * 1.6, v: .18 + (i - 5) * .12 + rnd() * .05, lift: sizeM * (.16 + rnd() * .06), speed: .0045 + rnd() * .002 }
+      : { u: rnd() * 1.6, v: .5 + rnd() * .14, lift: sizeM * (.09 + rnd() * .06), speed: .003 + rnd() * .003 };
     clouds.add(m);
   }
 }
-function placeClouds(tick, amount) {
-  clouds.visible = amount > .01;
-  if (!clouds.visible) return;
+function placeClouds(tick) {
   for (const m of clouds.children) {
-    const d = m.userData, u = .12 + ((d.u + tick * d.speed / FPS) % 1) * .8;   // slow drift, wraps inside the diorama
+    const d = m.userData, u = -.3 + ((d.u + tick * d.speed / FPS) % 1.6);   // slow drift across and beyond the frame, then around again
     m.position.copy(projRay(u, d.v, target0.z)); m.position.z += d.lift;
-    // never over the UI: shrink away when the tuft would touch the title, the time panel or an open card
-    const [x, y, front] = screenOf(m.position, camera), rpx = Math.hypot(...screenOf(m.position.clone().addScaledVector(camRightH, d.r), camera).slice(0, 2).map((v, i) => v - [x, y][i]));
-    const hit = !front || uiRects().some((r) => x + rpx > r.left && x - rpx < r.right && y + rpx > r.top && y - rpx < r.bottom);
-    d.s += ((hit ? 0 : 1) - d.s) * .5;
-    m.scale.setScalar(Math.max(.001, (.2 + .8 * amount) * d.s));
   }
 }
 
@@ -532,10 +594,10 @@ const camera = new THREE.PerspectiveCamera(30, 1, 10, 20000);
 camera.up.set(0, 0, 1);
 const fwd0 = target0.clone().sub(projCam.position);
 const bearing0 = Math.atan2(fwd0.x, fwd0.y) / deg, pitch0 = Math.asin(-fwd0.z / dist0) / deg;
-const LIM = { yaw: [-12, 12], pitch: [-5, 15], zoom: [1, deep ? 8 : small ? 4 : 2] };   // tile pyramid: zoom as deep as z3   // tile pyramid: twice as deep
+const LIM = { yaw: [-12, 12], pitch: [-5, 15], zoom: [1, deep ? 8 : small ? 4 : 2] };   // tile pyramid: zoom as deep as z3
 const T = { p: target0.clone(), yaw: 0, pitch: 0, zoom: 1 };      // target state
 const C = { p: target0.clone(), yaw: 0, pitch: 0, zoom: 1 };      // eased state
-let sw = 1, sh = 1, cover = [tanX, tanY], liftNdc = 0;
+let sw = 1, sh = 1, cover = [tanX, tanY], liftNdc = 0;   // liftNdc: optional lens shift (0 now that the time slider is in the menu)
 function pose(s, cam) {
   const b = (bearing0 + s.yaw) * deg, p = (pitch0 + s.pitch) * deg, d = dist0 / s.zoom;
   cam.position.set(s.p.x - Math.sin(b) * Math.cos(p) * d, s.p.y - Math.cos(b) * Math.cos(p) * d, s.p.z + Math.sin(p) * d);
@@ -552,7 +614,6 @@ function resize() {
   renderer.setSize(sw, sh, false);
   const a = sw / sh, ia = tanX / tanY;
   cover = a > ia ? [tanX, tanX / a] : [tanY * a, tanY];   // "cover" fit of the render frame
-  liftNdc = Math.min(.14, 2 * ($('time').offsetHeight * .45) / sh);
   sceneRT.setSize(Math.round(sw * DPR), Math.round(sh * DPR));
   pu.uScreen.value.set(sw * DPR, sh * DPR);
 }
@@ -574,19 +635,14 @@ const postMat = new THREE.ShaderMaterial({
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
   uniforms: {
     tScene: { value: sceneRT.texture }, uScreen: { value: new THREE.Vector2() }, uDpr: { value: DPR },
-    uFocus: { value: .5 }, uDof: { value: small ? 1.0 : 1.5 }, uTick: { value: 0 }, uTime: { value: 0 }, uSel: { value: -1 }, uRain: { value: 0 }, uRainLight: { value: 1 },
-    uHiPos: { value: Array.from({ length: MAX_HI }, () => new THREE.Vector4()) }, uHiN: { value: 0 },
-    uAccent: { value: cssColor('--accent') }, uAccent2: { value: cssColor('--accent-samen') },
+    uFocus: { value: .5 }, uDof: { value: small ? 1.0 : 1.5 }, uTick: { value: 0 }, uRain: { value: 0 }, uRainLight: { value: 1 },
   },
   fragmentShader: `
 precision highp float;
 varying vec2 vUv;
 uniform sampler2D tScene;
 uniform vec2 uScreen;
-uniform float uDpr, uFocus, uDof, uTick, uTime, uRain, uRainLight;
-uniform int uSel, uHiN;
-uniform vec3 uAccent, uAccent2;
-uniform vec4 uHiPos[${MAX_HI}];   // one per marker: xy = screen uv, z = number of places in it, w = category (0 toerist, 1 samen)
+uniform float uDpr, uFocus, uDof, uTick, uRain, uRainLight;
 ${COMMON}
 vec4 S(vec2 uv, float lod){ return textureLod(tScene, uv, lod); }
 void main(){
@@ -600,37 +656,19 @@ void main(){
   col.r = mix(col.r, S(uv + ca, blur + .5).r + bloom.r, .65);
   col.b = mix(col.b, S(uv - ca, blur + .5).b + bloom.b, .65);
 
-  // rain: fishing-line threads with a glass bead, re-drawn on the stop-motion clock
+  // rain: thin short streaks (a few px), redrawn on the stop-motion clock; subtle
   if (uRain > .01) {
     vec2 p = uv * uScreen / uDpr;
-    p.x += p.y * .16;
-    vec2 cell = vec2(24., 74.);
+    p.x += p.y * .12;
+    vec2 cell = vec2(11., 46.);
     vec2 id = floor(p / cell), l = fract(p / cell) * cell;
     float tk = floor(uTick);
     float h1 = hash(id + tk * 1.37), h2 = hash(id * 1.7 + tk * .71), h3 = hash(id + tk * 2.3 + 5.);
-    float on = step(h1, .32 * uRain);
-    float x0 = 4. + h2 * (cell.x - 8.), y0 = h3 * cell.y * .35, len = cell.y * (.3 + .3 * h2);
-    float line = smoothstep(1., .15, abs(l.x - x0)) * step(y0, l.y) * step(l.y, y0 + len) * smoothstep(y0, y0 + len, l.y);
-    float bead = smoothstep(2.3, 1.1, length(vec2(l.x - x0, l.y - y0)));
-    vec3 glass = vec3(.84, .9, 1.) * uRainLight;
-    col = mix(col, glass, on * (line * .38 + bead * .6));
-    col += glass * on * bead * smoothstep(1.1, 0., length(vec2(l.x - x0 + .6, l.y - y0 - .6))) * .5;   // tiny glint
+    float on = step(h1, .3 * uRain);
+    float x0 = 2. + h2 * (cell.x - 4.), y0 = h3 * (cell.y - 16.), len = 7. + 7. * h2;
+    float line = smoothstep(.75, .1, abs(l.x - x0 + (l.y - y0) * .12)) * smoothstep(y0, y0 + 2., l.y) * smoothstep(y0 + len, y0 + len - 3., l.y);
+    col = mix(col, vec3(.86, .91, 1.) * uRainLight, on * line * .32);
   }
-
-  // highlights: pulsing ring + dot at each 3D anchor
-  float glow = 0.; vec3 gcol = vec3(0.);
-  for (int i = 0; i < ${MAX_HI}; i++) {
-    if (i >= uHiN) break;
-    if (uHiPos[i].w < 0. || uHiPos[i].z < .5) continue;
-    float cnt = uHiPos[i].z;   // places merged into this marker
-    float pulse = .5 + .5 * sin(uTime * 2.2 + float(i) * 1.3);
-    float sel = i == uSel ? 1. : 0.;
-    float d = length((uv - uHiPos[i].xy) * uScreen / uDpr);
-    float rr = 13. + 4. * pulse + 4. * sel + 3. * min(cnt - 1., 3.);
-    float g = smoothstep(2.2, 0., abs(d - rr)) * (.6 + .3 * pulse + .4 * sel) + smoothstep(6., 2.5, d) * .95 + smoothstep(rr + 16., 0., d) * .1;
-    glow += g; gcol += g * (uHiPos[i].w > .5 ? uAccent2 : uAccent);
-  }
-  if (glow > 0.) col = mix(col, gcol / glow, clamp(glow, 0., 1.) * .85) + gcol * .12;
 
   vec2 v = (uv - .5) * vec2(uScreen.x / uScreen.y, 1.);
   col *= mix(.72, 1., smoothstep(1.05, .35, length(v)));             // vignette
@@ -641,7 +679,7 @@ void main(){
 const pu = postMat.uniforms;
 const postScene = new THREE.Scene();
 postScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), postMat));
-addEventListener('resize', () => { resize(); });
+addEventListener('resize', () => { resize(); needRender = pinsDirty = true; });
 resize();
 
 // ---------- highlights (highlights.json) as 3D anchors ----------
@@ -682,24 +720,38 @@ for (const it of hlFile.items || []) {
   if (!(u > .01 && u < .99 && v > .01 && v < .99 && z < 1)) { console.info('plek niet in beeld, overgeslagen:', it.titel); continue; }
   highlights.push({ ...it, world: new THREE.Vector3(xy[0], xy[1], pl?.zMarker ?? Math.max(gz, pl?.z ?? -1e9) + 4) });
 }
-highlights.splice(MAX_HI);
-pu.uHiN.value = highlights.length;
-const CATS = { toerist: 'Toeristisch', samen: 'Samen' };
+// ---------- categories (a light medical wink: Tess is a doctor) ----------
+const CATS = { toerist: 'Standaardbehandeling', samen: 'Persoonlijk behandelplan' };
 const catOf = (h) => (h.categorie in CATS ? h.categorie : 'toerist');
 const showCat = { toerist: true, samen: true };
 const visible = (h) => showCat[catOf(h)];
+const nowMs = () => (Q.has('nu') ? Date.parse(Q.get('nu')) : Date.now());   // ?nu=2026-10-23T10:00 for tests
+const shadow = '<ellipse cx="23" cy="50" rx="7" ry="2.2" fill="rgba(40,20,0,.3)"/>';
+const needle = '<path d="M22.2 50 L22.2 28 L23.8 28 L23.8 50 Z" fill="url(#gPole)"/>';
+const shine = (x, y) => `<ellipse cx="${x}" cy="${y}" rx="3.4" ry="2.1" fill="#fff" opacity=".45" transform="rotate(-25 ${x} ${y})"/>`;
+const MARK = {   // clay markers: flag = standard treatment, pin with a cross = personal plan, cream head with a number = cluster
+  toerist: `<svg viewBox="0 0 46 54">${shadow}<g filter="url(#clay)"><path d="M21.7 50 L21.7 9 L24.3 9 L24.3 50 Z" fill="url(#gPole)"/>
+    <path d="M24 10 C30 7.5 34 12.5 41 10 C39 15 39.5 19.5 41 24 C34 26.5 30 21 24 23.5 Z" fill="url(#gT)"/>
+    <circle cx="23" cy="8.5" r="3.2" fill="url(#gC)"/>${shine(30, 13)}</g></svg>`,
+  samen: `<svg viewBox="0 0 46 54">${shadow}<g filter="url(#clay)">${needle}<circle cx="23" cy="18" r="12.5" fill="url(#gS)"/>
+    <path d="M20.6 11 h4.8 v4.6 h4.6 v4.8 h-4.6 v4.6 h-4.8 v-4.6 h-4.6 v-4.8 h4.6 Z" fill="#fff8ef" stroke="#fff8ef" stroke-width="1" stroke-linejoin="round"/>${shine(17.5, 12)}</g></svg>`,
+  cluster: (n, col) => `<svg viewBox="0 0 46 54">${shadow}<g filter="url(#clay)">${needle}<circle cx="23" cy="17" r="14" fill="url(#gC)" stroke="${col}" stroke-width="2.5"/>${shine(17, 11)}</g>
+    <text x="23" y="22.5" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-weight="600" font-size="15" fill="${col}">${n}</text></svg>`,
+};
+const icon = (cat) => MARK[cat].replace('viewBox="0 0 46 54"', 'viewBox="6 4 36 48"');
 for (const [cat, label] of Object.entries(CATS)) {
-  const b = Object.assign(document.createElement('button'), { className: `chip ${cat}`, textContent: label });
+  const b = Object.assign(document.createElement('button'), { className: `chip ${cat}` });
+  b.innerHTML = `<span class="box"></span>${icon(cat)}<span>${label}</span>`;
   b.setAttribute('aria-pressed', 'true');
   b.onclick = () => {
     showCat[cat] = !showCat[cat];
     b.setAttribute('aria-pressed', String(showCat[cat]));
-    if (selected >= 0 && !visible(highlights[selected])) closeCard();
+    if (selected >= 0 && !visible(highlights[selected])) closeCard(true);
+    pinsDirty = true;
   };
   $('legend').append(b);
 }
 const camRightH = new THREE.Vector3(Math.cos(bearing0 * deg), -Math.sin(bearing0 * deg), 0);
-const camFwdH = new THREE.Vector3(Math.sin(bearing0 * deg), Math.cos(bearing0 * deg), 0);
 if (highlights[0] && cover[0] < tanX * .8) {   // narrow screen: start with the first place in the middle (like the flat viewer)
   T.p.addScaledVector(camRightH, highlights[0].world.clone().sub(T.p).dot(camRightH));
   T.p.copy(clampPivot(T.p, 1)); C.p.copy(T.p);
@@ -717,51 +769,68 @@ const PHASES = [
   { name: 'Schemer',    clock: 18.7,  key: [1.0, .45, .36, .55],  fill: [.36, .36, .78, .55], amb: [.06, .06, .13], win: .55, sat: 1.1,  expo: 1.45 },
   { name: 'Nacht',      clock: 22,    key: [.42, .54, 1.0, .30],  fill: [.16, .20, .50, .14], amb: [.015, .025, .07], win: 1, sat: 1.05, expo: 1.7 },
 ];
+// clock (hours) -> mood: dark until 06:30, morning by 09:00, ..., dark again from 20:15 (Bergen in late October)
+const KF = [[0, 4], [6.5, 4], [9, 0], [13.25, 1], [17.4, 2], [18.7, 3], [20.25, 4], [24, 4]];
 const lerp = (a, b, t) => a + (b - a) * t;
 const mixArr = (a, b, t) => a.map((v, i) => lerp(v, b[i], t));
-function phaseAt(t) {
-  const i = Math.min(Math.floor(t), PHASES.length - 2), f = THREE.MathUtils.smoothstep(t - i, 0, 1);
-  const a = PHASES[i], b = PHASES[i + 1];
-  const o = { clock: lerp(a.clock, b.clock, t - i) };
-  for (const k of ['key', 'fill', 'amb']) o[k] = mixArr(a[k], b[k], f);
-  for (const k of ['win', 'sat', 'expo']) o[k] = lerp(a[k], b[k], f);
+function phaseAt(c) {
+  let k = 0;
+  while (k < KF.length - 2 && c > KF[k + 1][0]) k++;
+  const [c0, i0] = KF[k], [c1, i1] = KF[k + 1], f = THREE.MathUtils.smoothstep(c, c0, c1);
+  const a = PHASES[i0], b = PHASES[i1], o = { clock: c };
+  for (const key of ['key', 'fill', 'amb']) o[key] = mixArr(a[key], b[key], f);
+  for (const key of ['win', 'sat', 'expo']) o[key] = lerp(a[key], b[key], f);
   return o;
 }
+const phaseName = (c) => c < 7.5 || c >= 19.6 ? 'Nacht' : c < 11 ? 'Ochtend' : c < 15.5 ? 'Middag' : c < 18.1 ? 'Gouden uur' : 'Schemer';
+const hhmm = (c) => { const m = Math.round(c * 60) % 1440; return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 
-// ---------- UI: time ----------
+// ---------- UI: menu with time + rain ----------
+const menu = $('menu'), menuBtn = $('menu-btn');
+const setMenu = (open) => { menu.classList.toggle('closed', !open); menuBtn.setAttribute('aria-expanded', String(open)); };
+menuBtn.onclick = () => setMenu(menu.classList.contains('closed'));
+$('menu-close').onclick = () => setMenu(false);
+$('time-row').onclick = () => { const tb = $('timebox'); tb.hidden = !tb.hidden; $('time-row').setAttribute('aria-expanded', String(!tb.hidden)); };
 const slider = $('slider');
-function bergenT() {   // follow the real time in Bergen (unless ?t= is given or the slider is touched)
-  const [h, m] = new Date().toLocaleTimeString('en-GB', { timeZone: 'Europe/Oslo', hour12: false }).split(':').map(Number);
-  const c = h + m / 60;
-  if (c < 6) return 4;
-  if (c < PHASES[0].clock) return 0;
-  for (let i = 0; i < PHASES.length - 1; i++) if (c <= PHASES[i + 1].clock) return i + (c - PHASES[i].clock) / (PHASES[i + 1].clock - PHASES[i].clock);
-  return 4;
+function bergenClock() {   // the real time in Bergen, in hours
+  const [h, m] = new Date(nowMs()).toLocaleTimeString('en-GB', { timeZone: 'Europe/Oslo', hour12: false }).split(':').map(Number);
+  return (h % 24) + m / 60;
 }
-let touched = Q.has('t');
-slider.value = Q.get('t') ?? bergenT();
-slider.addEventListener('input', () => { touched = true; });
-setInterval(() => { if (!touched) { slider.value = bergenT(); updateLabel(); } }, 60000);
-PHASES.forEach((p, i) => {
+let clock = bergenClock(), auto = true;
+if (Q.has('klok')) { clock = +Q.get('klok'); auto = false; }
+else if (Q.has('t')) {   // old links: ?t= phase index 0..4
+  const t = clampV(+Q.get('t'), [0, 4]), i = Math.min(3, Math.floor(t));
+  clock = lerp(PHASES[i].clock, PHASES[i + 1].clock, t - i); auto = false;
+}
+function setAuto(on) {
+  auto = on; $('auto').setAttribute('aria-checked', String(on));
+  if (on) clock = bergenClock();
+  updateLabel();
+}
+$('auto').onclick = () => setAuto(!auto);
+slider.addEventListener('input', () => { auto = false; $('auto').setAttribute('aria-checked', 'false'); clock = +slider.value / 60; updateLabel(); });
+setInterval(() => { if (auto) { clock = bergenClock(); updateLabel(); } }, 30000);
+PHASES.forEach((p) => {
   const b = Object.assign(document.createElement('button'), { textContent: p.name });
-  b.onclick = () => { touched = true; slider.value = i; updateLabel(); };
+  b.onclick = () => { auto = false; $('auto').setAttribute('aria-checked', 'false'); clock = p.clock; updateLabel(); };
   $('stops').append(b);
 });
 function updateLabel() {
-  const t = +slider.value, i = Math.round(t);
-  $('phase').textContent = PHASES[i].name;
-  [...$('stops').children].forEach((b, k) => b.classList.toggle('on', k === i));
-  const c = phaseAt(t).clock % 24;
-  $('clock').textContent = `${String(Math.floor(c)).padStart(2, '0')}:${String(Math.floor((c % 1) * 60 / 5) * 5).padStart(2, '0')}`;
+  slider.value = Math.round(clock * 12) * 5;
+  const name = phaseName(clock);
+  $('phase').textContent = name;
+  [...$('stops').children].forEach((b) => b.classList.toggle('on', b.textContent === name));
+  $('clock').textContent = $('time-val').textContent = hhmm(clock);
+  $('auto').setAttribute('aria-checked', String(auto));
 }
-slider.addEventListener('input', updateLabel);
 updateLabel();
 
-// ---------- UI: rain (default: the real weather in Bergen from api.met.no, silently dry if that fails) ----------
+// rain (default: the real weather in Bergen from api.met.no, silently dry if that fails)
 let rainOn = false, rain = 0, rainTouched = Q.has('regen');
 const rainBtn = $('rain');
-const setRain = (on) => { rainOn = on; rainBtn.setAttribute('aria-pressed', String(on)); };
+const setRain = (on) => { rainOn = on; rainBtn.setAttribute('aria-checked', String(on)); $('rain-val').textContent = rainTouched ? '' : 'volgt het weer'; };
 rainBtn.onclick = () => { rainTouched = true; setRain(!rainOn); };
+setRain(false);
 if (Q.has('regen')) setRain(Q.get('regen') === '1');
 else fetch('https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=60.39&lon=5.32')
   .then((r) => r.ok ? r.json() : null)
@@ -771,38 +840,88 @@ else fetch('https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=60.39
     if (wet && !rainTouched) setRain(true);
   }).catch(() => {});
 
-// ---------- UI: card ----------
-let selected = -1;
-function openCard(h, i) {
-  deepArmed = true;
-  selected = i;
+// ---------- camera flights: selecting a place flies in, back flies out ----------
+const dragCam = new THREE.PerspectiveCamera();
+dragCam.up.set(0, 0, 1);
+const hitPlane = (x, y, cam, z) => {
+  ray.setFromCamera(new THREE.Vector2(x / sw * 2 - 1, 1 - y / sh * 2), cam);
+  return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -z), new THREE.Vector3());
+};
+const snap = (s) => ({ p: s.p.clone(), yaw: s.yaw, pitch: s.pitch, zoom: s.zoom });
+let flight = null;
+const ease = (s) => s < .5 ? 4 * s * s * s : 1 - (-2 * s + 2) ** 3 / 2;
+function flyTo(to, dur) {
+  const from = snap(C);
+  const r = to.zoom / from.zoom, far = from.p.distanceTo(to.p) / (dist0 / Math.max(from.zoom, to.zoom));
+  flight = { from, to, t0: performance.now(), dur: dur ?? clampV(650 + 450 * Math.abs(Math.log(r)) + 250 * Math.min(far, 2), [650, 1700]) };
+}
+function stepFlight(now) {
+  const { from, to, t0, dur } = flight, s = Math.min(1, (now - t0) / dur), e = ease(s);
+  T.zoom = from.zoom * (to.zoom / from.zoom) ** e;
+  // zoom about the one point that stays put (the place glides in instead of swinging past)
+  const w = Math.abs(to.zoom - from.zoom) > 1e-3 ? (1 - from.zoom / T.zoom) / (1 - from.zoom / to.zoom) : e;
+  T.p.lerpVectors(from.p, to.p, w); T.yaw = lerp(from.yaw, to.yaw, e); T.pitch = lerp(from.pitch, to.pitch, e);
+  C.p.copy(T.p); C.yaw = T.yaw; C.pitch = T.pitch; C.zoom = T.zoom;
+  if (s >= 1) flight = null;
+}
+const cancelFlight = () => { if (flight) { flight = null; Object.assign(T, snap(C)); } };
+function zoomAbout(x, y, zoom, dur = 380) {   // animated zoom keeping the ground under (x, y) in place
+  const to = snap(T);
+  to.zoom = clampV(zoom, LIM.zoom);
+  pose(T, dragCam);
+  const h = hitPlane(x, y, dragCam, T.p.z);
+  if (h) to.p.lerp(h, 1 - T.zoom / to.zoom);
+  to.p.copy(clampPivot(to.p, to.zoom));
+  flyTo(to, dur);
+}
+function closeUp(h) {   // a close view from a little higher, with the place in the middle of what the card leaves free
+  const card = $('card'), wide = sw >= 760;
+  const to = { p: target0.clone(), yaw: clampV(T.yaw, LIM.yaw), pitch: Math.max(clampV(T.pitch, LIM.pitch), 6), zoom: clampV(Math.max(T.zoom, small ? 3.8 : 4.4), LIM.zoom) };
+  const top = $('title').offsetTop + $('title').offsetHeight;
+  const tx = wide ? card.offsetLeft / 2 + 8 : sw / 2, ty = wide ? (top + sh) / 2 : (top + card.offsetTop) / 2;
+  to.p.set(h.world.x, h.world.y, target0.z);
+  pose(to, dragCam);
+  const H = hitPlane(tx, ty, dragCam, h.world.z);
+  if (H) to.p.add(new THREE.Vector3(h.world.x - H.x, h.world.y - H.y, 0));
+  to.p.copy(clampPivot(to.p, to.zoom));
+  return to;
+}
+
+// ---------- UI: prescription card ----------
+let selected = -1, home = null;
+function fillCard(h) {
   $('card-title').textContent = h.titel || 'Plek';
+  $('card-cat').textContent = CATS[catOf(h)];
   $('card-text').textContent = h.tekst || '';
-  const weer = { regen: 'ook bij regen', zon: 'bij droog weer' }[h.weer];
-  $('card-meta').textContent = [h.kosten, weer].filter(Boolean).join(', ');
-  $('card-meta').hidden = !$('card-meta').textContent;
-  const cat = $('card-cat');
-  cat.hidden = false;
-  cat.className = `chip static ${catOf(h)}`;
-  cat.textContent = CATS[catOf(h)];
-  const vis = highlights.filter(visible);
-  $('card-nav').hidden = vis.length < 2;
-  $('count').textContent = `${vis.indexOf(h) + 1} van ${vis.length}`;
+  const weer = { regen: 'mag ook bij regen', zon: 'bij droog weer' }[h.weer];
+  const rows = [['Sig.', h.dosering, true], ['Wanneer', h.wanneer], ['Waar', h.waar], ['Kosten', h.kosten], ['Weer', weer]].filter((r) => r[1]);
+  $('card-dl').replaceChildren(...rows.flatMap(([k, v, hand]) => [
+    Object.assign(document.createElement('dt'), { textContent: k }), Object.assign(document.createElement('dd'), { textContent: v, className: hand ? 'hand' : '' })]));
   const img = $('card-img');
   img.hidden = !h.foto;
   if (h.foto) img.src = h.foto;
-  $('card').classList.add('open');
-  // fly over: zoom in a little, place the spot in the upper part of the screen (above the card)
-  T.zoom = clampV(sw < 700 ? 1.6 : 1.5, LIM.zoom);
-  const visDepth = 2 * dist0 / T.zoom * cover[1] / Math.sin(pitch0 * deg);
-  const p = h.world.clone(); p.z = target0.z;
-  T.p.copy(clampPivot(p.addScaledVector(camFwdH, -visDepth * (sw < 700 ? .2 : .12)), T.zoom));
+  const vis = highlights.filter(visible);
+  $('count').textContent = `${vis.indexOf(h) + 1} van ${vis.length}`;
+  $('prev').hidden = $('next').hidden = $('count').hidden = vis.length < 2;
 }
-function closeCard() {
-  selected = -1;
+function openCard(h, i, fly = true) {
+  cancelFlight();
+  if (selected < 0 && !home) home = snap(T);
+  selected = i; pinsDirty = true;
+  fillCard(h);
+  $('card').className = `paper open ${catOf(h)}`;
+  $('card').scrollTop = 0;
+  setMenu(false); $('hint').classList.add('gone');
+  if (fly) flyTo(closeUp(h));
+}
+function closeCard(back) {
+  if (selected < 0) return;
+  selected = -1; pinsDirty = true;
   $('card').classList.remove('open');
+  if (back && home) { cancelFlight(); flyTo(home); }
+  home = null;
 }
-$('close').onclick = closeCard;
+$('close').onclick = $('back').onclick = () => closeCard(true);
 const stepCard = (d) => {
   const vis = highlights.filter(visible);
   if (!vis.length) return;
@@ -811,101 +930,114 @@ const stepCard = (d) => {
 };
 $('prev').onclick = () => stepCard(-1);
 $('next').onclick = () => stepCard(1);
-addEventListener('keydown', (e) => e.key === 'Escape' && closeCard());
-
-function pick(x, y) {
-  let best = -1, bd = 32;
-  highlights.forEach((h, i) => {
-    if (!visible(h)) return;
-    const [sx, sy, front] = screenOf(h.world, camera);
-    const d = Math.hypot(sx - x, sy - y);
-    if (front && d < bd) { bd = d; best = i; }
-  });
-  if (best >= 0) openCard(highlights[best], best); else closeCard();
-}
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!menu.classList.contains('closed')) setMenu(false); else closeCard(true);
+});
 
 // ---------- markers: places close together on screen merge into one (with a count), split again when zooming in ----------
 const pinsEl = Object.assign(document.createElement('div'), { id: 'pins' });
 document.body.insertBefore(pinsEl, $('title'));
-const pins = Array.from({ length: MAX_HI }, () => {
+const pins = highlights.map(() => {
   const b = document.createElement('button');
-  b.innerHTML = '<span class="n"></span>';
-  b.onclick = () => openCluster(b.cluster);
+  b.onclick = (e) => { if (e.detail === 0) openCluster(b.cluster); };   // keyboard; pointer taps on pins go through the gesture code (so a pan or pinch may start on a pin)
   pinsEl.append(b);
   return b;
 });
 function openCluster(c) {
   if (!c) return;
-  if (c.m.length === 1) return openCard(c.m[0], highlights.indexOf(c.m[0]));
-  if (T.zoom >= LIM.zoom[1] - .01) return openCard(c.m[0], highlights.indexOf(c.m[0]));   // cannot split further
-  const p = c.m.reduce((a, h) => a.add(h.world), new THREE.Vector3()).divideScalar(c.m.length); p.z = target0.z;
-  T.zoom = Math.min(LIM.zoom[1], T.zoom * 2.2);
-  T.p.copy(clampPivot(p, T.zoom));
+  if (c.m.length === 1 || T.zoom >= LIM.zoom[1] - .01) return openCard(c.m[0], highlights.indexOf(c.m[0]));   // one place, or cannot split further
+  const p = c.m.reduce((a, h) => a.add(h.world), new THREE.Vector3()).divideScalar(c.m.length);
+  const [x, y] = screenOf(p, camera);
+  cancelFlight();
+  zoomAbout(x, y, T.zoom * 2.4, 700);
 }
+let pinsDirty = true, needRender = true;
 function layoutPins() {
   const cl = [];
   for (const h of highlights) {
     if (!visible(h)) continue;
     const [x, y, front] = screenOf(h.world, camera);
-    if (!front || x < -30 || y < -30 || x > sw + 30 || y > sh + 30) continue;
-    const c = cl.find((c) => Math.hypot(c.x - x, c.y - y) < 50);
+    if (!front || x < -30 || y < -30 || x > sw + 30 || y > sh + 60) continue;
+    const c = cl.find((c) => Math.hypot(c.x - x, c.y - y) < 44);
     if (c) { c.m.push(h); c.x += (x - c.x) / c.m.length; c.y += (y - c.y) / c.m.length; } else cl.push({ x, y, m: [h] });
   }
-  pu.uHiN.value = cl.length; pu.uSel.value = -1;
   pins.forEach((b, i) => {
     const c = cl[i];
     b.hidden = !c; b.cluster = c;
     if (!c) return;
-    pu.uHiPos.value[i].set(c.x / sw, 1 - c.y / sh, c.m.length, c.m.every((h) => catOf(h) === 'samen') ? 1 : 0);
-    if (c.m.includes(highlights[selected])) pu.uSel.value = i;
-    b.style.transform = `translate(${c.x}px, ${c.y}px)`;
-    const label = c.m.length > 1 ? `${c.m.length} plekken: ${c.m.map((h) => h.titel).join(', ')}` : c.m[0].titel;
-    if (b.getAttribute('aria-label') !== label) {
-      b.setAttribute('aria-label', label); b.title = label;
-      b.firstChild.textContent = c.m.length > 1 ? c.m.length : '';
+    b.style.transform = `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px)`;
+    b.classList.toggle('sel', c.m.includes(highlights[selected]));
+    const one = c.m.length === 1 && c.m[0];
+    const kind = one ? catOf(one) : `n${c.m.length}${c.m.every((h) => catOf(h) === 'samen') ? 's' : ''}`;
+    if (b.dataset.kind !== kind) {
+      b.dataset.kind = kind;
+      b.innerHTML = one ? MARK[kind] : MARK.cluster(c.m.length, kind.endsWith('s') ? 'var(--accent-samen)' : 'var(--accent)');
     }
+    const label = one ? one.titel : `${c.m.length} plekken: ${c.m.map((h) => h.titel).join(', ')}`;
+    if (b.getAttribute('aria-label') !== label) { b.setAttribute('aria-label', label); b.title = label; }
   });
 }
 
-// ---------- input: drag = pan, right/shift-drag or two-finger twist/tilt = turn, wheel/pinch = zoom ----------
-const dragCam = new THREE.PerspectiveCamera();
-dragCam.up.set(0, 0, 1);
-const hitPlane = (x, y, cam, z) => {
-  ray.setFromCamera(new THREE.Vector2(x / sw * 2 - 1, 1 - y / sh * 2), cam);
-  return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), -z), new THREE.Vector3());
-};
+// ---------- hint: once, how to move (and turn) ----------
+function showHint() {
+  let seen = false;
+  try { seen = localStorage.getItem('bergen-klei-hint') === '1'; localStorage.setItem('bergen-klei-hint', '1'); } catch {}
+  if (seen && !Q.has('hint')) return;
+  const el = $('hint');
+  el.textContent = coarse ? 'Eén vinger schuift, knijp om te zoomen, draai met twee vingers. Dubbeltik zoomt in.'
+    : 'Slepen schuift, scrollen zoomt. Draaien: rechtermuisknop of shift ingedrukt en slepen.';
+  el.classList.remove('gone');
+  const t0 = performance.now(), hide = () => el.classList.add('gone');
+  setTimeout(hide, 9000);
+  addEventListener('pointerdown', function h() { if (performance.now() - t0 > 2500) { hide(); removeEventListener('pointerdown', h); } });
+}
+
+// ---------- input: 1 finger / drag = pan, pinch = zoom about the fingers, 2-finger twist / right- or shift-drag = turn,
+// wheel = zoom about the cursor, double tap = zoom in there ----------
 const pts = new Map();
-let gesture = null;
+let gesture = null, lastTap = null;
 const interacting = () => pts.size > 0;
 function startGesture(e) {
   const P = [...pts.values()];
   const base = { yaw: T.yaw, pitch: T.pitch, zoom: T.zoom, p: T.p.clone(), moved: false };
+  pose(T, dragCam);
   if (P.length >= 2) {
-    const [a, b] = P;
-    gesture = { ...base, kind: 'two', d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x), my: (a.y + b.y) / 2, moved: true };
+    const [a, b] = P, mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    gesture = { ...base, kind: 'two', d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x), hit: hitPlane(mx, my, dragCam, T.p.z), moved: true };
   } else {
     const rot = e.button === 2 || e.shiftKey || e.ctrlKey || e.metaKey;
-    pose(T, dragCam);
     gesture = { ...base, kind: rot ? 'rot' : 'pan', x: e.clientX, y: e.clientY, hit: hitPlane(e.clientX, e.clientY, dragCam, T.p.z) };
   }
 }
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-canvas.addEventListener('pointerdown', (e) => {
+function down(e) {
+  if (e.currentTarget === pinsEl && !e.target.closest('button')) return;
+  cancelFlight();
+  if (!menu.classList.contains('closed')) setMenu(false);
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   canvas.setPointerCapture(e.pointerId);
   startGesture(e);
-});
+  gesture.pin = pts.size === 1 && e.target.closest?.('#pins button');
+}
+canvas.addEventListener('pointerdown', down);
+pinsEl.addEventListener('pointerdown', down);
+const tmp = { p: new THREE.Vector3(), yaw: 0, pitch: 0, zoom: 1 };
 canvas.addEventListener('pointermove', (e) => {
   if (!pts.has(e.pointerId) || !gesture) return;
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
   const g = gesture;
   if (g.kind === 'two' && pts.size >= 2) {
-    const [a, b] = [...pts.values()];
+    const [a, b] = [...pts.values()], mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
     T.zoom = rubber(g.zoom * Math.hypot(a.x - b.x, a.y - b.y) / Math.max(g.d, 1), LIM.zoom);
     let da = Math.atan2(b.y - a.y, b.x - a.x) - g.ang;
     da = Math.atan2(Math.sin(da), Math.cos(da));
     T.yaw = rubber(g.yaw - da / deg, LIM.yaw);
-    T.pitch = rubber(g.pitch + ((a.y + b.y) / 2 - g.my) * .08, LIM.pitch);
+    if (g.hit) {   // the ground that was between the fingers stays between the fingers
+      Object.assign(tmp, { yaw: T.yaw, pitch: T.pitch, zoom: T.zoom }); tmp.p.copy(g.p);
+      const h = hitPlane(mx, my, pose(tmp, dragCam), g.p.z);
+      if (h) T.p.copy(rubberPivot(g.p.clone().add(g.hit).sub(h), T.zoom));
+    }
     return;
   }
   const dx = e.clientX - g.x, dy = e.clientY - g.y;
@@ -915,14 +1047,24 @@ canvas.addEventListener('pointermove', (e) => {
     T.yaw = rubber(g.yaw - dx * .08, LIM.yaw);
     T.pitch = rubber(g.pitch + dy * .06, LIM.pitch);
   } else if (g.hit) {
-    const h = hitPlane(e.clientX, e.clientY, dragCam, g.p.z);
+    const h = hitPlane(e.clientX, e.clientY, pose(Object.assign(tmp, { yaw: g.yaw, pitch: g.pitch, zoom: T.zoom, p: tmp.p.copy(g.p) }), dragCam), g.p.z);
     if (h) T.p.copy(rubberPivot(g.p.clone().add(g.hit).sub(h), T.zoom));
   }
 });
 function endPointer(e) {
   const g = gesture;
   pts.delete(e.pointerId);
-  if (g && !g.moved && e.type === 'pointerup' && pts.size === 0) pick(e.clientX, e.clientY);
+  if (g && !g.moved && e.type === 'pointerup' && pts.size === 0) {
+    const now = performance.now();
+    if (g.pin) { lastTap = null; openCluster(g.pin.cluster); }
+    else if (lastTap && now - lastTap.t < 330 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) {   // double tap / double click
+      lastTap = null;
+      zoomAbout(e.clientX, e.clientY, T.zoom >= LIM.zoom[1] - .01 ? 1 : T.zoom * 2.2);
+    } else {
+      lastTap = { t: now, x: e.clientX, y: e.clientY };
+      closeCard(false);   // tap on the map: put the card away, stay here
+    }
+  }
   canvas.classList.remove('dragging');
   gesture = null;
   if (pts.size === 1) { const [p] = pts.values(); startGesture({ clientX: p.x, clientY: p.y, button: 0 }); gesture.moved = true; }
@@ -930,21 +1072,57 @@ function endPointer(e) {
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 let wheelTimer = 0;
-canvas.addEventListener('wheel', (e) => {
+function wheel(e) {
   e.preventDefault();
+  cancelFlight();
   const z0 = T.zoom;
-  T.zoom = rubber(T.zoom * Math.exp(-e.deltaY * .0015), LIM.zoom);
-  pose(T, dragCam);
-  const h = hitPlane(e.clientX, e.clientY, dragCam, T.p.z);   // zoom toward the cursor
+  const h = hitPlane(e.clientX, e.clientY, pose(T, dragCam), T.p.z);   // zoom toward the cursor: this ground point stays put
+  const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY;
+  T.zoom = rubber(T.zoom * Math.exp(-dy * (e.ctrlKey ? .01 : .0025)), LIM.zoom);   // ctrlKey: trackpad pinch
   if (h) T.p.copy(rubberPivot(T.p.clone().lerp(h, 1 - z0 / T.zoom), T.zoom));
   wheelTimer = performance.now();
-}, { passive: false });
+}
+canvas.addEventListener('wheel', wheel, { passive: false });
+pinsEl.addEventListener('wheel', wheel, { passive: false });
+for (const ev of ['gesturestart', 'gesturechange']) addEventListener(ev, (e) => e.preventDefault());   // Safari: no page zoom
 
-// ---------- loop ----------
+// ---------- water hook (see the comment at the top and WATER-CONTRACT.md) ----------
+const waterMeshes = [];
+root.traverse((o) => { if (o.isMesh && kindOf(o) === 'water') waterMeshes.push(o); });
+let water = null;
+if (Q.get('water') !== '0') {
+  try {
+    const mod = await import('./water.js');
+    water = await mod.createWater({ THREE, renderer, scene: world, camera, root, waterMeshes, uniforms: U, projector: projCam, depthTexture: depthRT.depthTexture,
+      box, tableZ, tile, target0, metresPerTexel: mppD, small, FPS, shader: { COMMON, TONE } });
+    if (water?.mesh) { world.add(water.mesh); if (!water.keepOriginal) waterMeshes.forEach((m) => { m.visible = false; }); }
+  } catch (e) { console.info('water.js niet gebruikt, het oude water blijft:', e.message); water = null; }
+}
+function dropWater(e) {
+  console.warn('water.js gaf een fout, terug naar het oude water:', e.message);
+  try { if (water?.mesh) world.remove(water.mesh); water?.dispose?.(); } catch {}
+  waterMeshes.forEach((m) => { m.visible = true; });
+  water = null;
+}
+// lights hook: same ctx/state as water; ./lights.js exports createLights(ctx) -> { group, update(dt, state), dispose }; any error = no lights
+let lights = null;
+if (Q.get('lights') !== '0') {
+  try {
+    const mod = await import('./lights.js');
+    lights = await mod.createLights({ THREE, renderer, scene: world, camera, root, waterMeshes, uniforms: U, projector: projCam, depthTexture: depthRT.depthTexture,
+      box, tableZ, tile, target0, metresPerTexel: mppD, small, FPS, shader: { COMMON, TONE } });
+    if (lights?.group) world.add(lights.group);
+  } catch (e) { console.info('lights.js niet gebruikt:', e.message); lights = null; }
+}
+const ws = { time: 0, dt: 0, tick: 0, clock: 0, sunDir: new THREE.Vector3(), sunElevation: 0, day: 1, keyColor: U.uKeyCol.value, fillColor: U.uFillCol.value,
+  ambient: U.uAmb.value, fillDir: U.uFillDir.value, rain: 0, camera, zoom: 1 };
+
+// ---------- loop: renders only when something changed (camera, the 8 fps stop-motion clock, tiles, water) ----------
+let day = 1, sunEl = 0;
 function updateLight(tick) {
-  const ph = phaseAt(+slider.value);
+  const ph = phaseAt(clock);
   const [az, el] = sunAt(ph.clock);
-  const day = THREE.MathUtils.smoothstep(el, -3, 1);
+  day = THREE.MathUtils.smoothstep(el, -3, 1); sunEl = el;
   const key = dirOf(az + Math.sin(tick * 2.1) * .4, Math.max(el, 4)).lerp(dirOf(200, 35), 1 - day).normalize();   // moon at night
   const fill = new THREE.Vector3(0, 0, 1).addScaledVector(key.clone().setZ(0), -.35).normalize();               // sky, opposite the sun
   rain += ((rainOn ? 1 : 0) - rain) * .35;
@@ -960,37 +1138,56 @@ function updateLight(tick) {
   U.uTick.value = tick % 997;
   pu.uRainLight.value = .35 + .65 * day;
   cloudMat.uniforms.uLight.value.set(...ph.key.slice(0, 3)).multiplyScalar(.25 + .5 * day).addScalar(.15 + .25 * day).multiplyScalar(.85);
-  placeClouds(tick, r);
+  cloudMat.uniforms.uGrey.value = r;
+  placeClouds(tick);
 }
-let lastTick = -1, lastDeep = 0;
-let deepArmed = false;   // tiles only after the first interaction: keeps the first load small
-for (const ev of ['pointerdown', 'wheel', 'keydown']) addEventListener(ev, () => { deepArmed = true; }, { once: true, passive: true });
+let lastTick = -1, lastDeep = 0, camMoved = 0, lastSig = '', lastT = performance.now(), loaded = false;
+const stats = { frames: 0, renders: 0 };
 function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(.1, (now - lastT) / 1000); lastT = now; stats.frames++;
   const tick = Math.floor(now / 1000 * FPS);
-  if (tick !== lastTick) { lastTick = tick; updateLight(tick); pu.uTick.value = tick % 997; }
-  if (!interacting() && now - wheelTimer > 250) {   // soft springs back inside the limits
-    T.yaw += (clampV(T.yaw, LIM.yaw) - T.yaw) * .12;
-    T.pitch += (clampV(T.pitch, LIM.pitch) - T.pitch) * .12;
-    T.zoom += (clampV(T.zoom, LIM.zoom) - T.zoom) * .12;
-    T.p.lerp(clampPivot(T.p, T.zoom), .12);
+  if (tick !== lastTick) { lastTick = tick; updateLight(tick); pu.uTick.value = tick % 997; needRender = true; }
+  if (flight) stepFlight(now);
+  else {
+    if (!interacting() && now - wheelTimer > 250) {   // soft springs back inside the limits
+      const sp = 1 - Math.exp(-dt * 7);
+      T.yaw += (clampV(T.yaw, LIM.yaw) - T.yaw) * sp;
+      T.pitch += (clampV(T.pitch, LIM.pitch) - T.pitch) * sp;
+      T.zoom += (clampV(T.zoom, LIM.zoom) - T.zoom) * sp;
+      T.p.lerp(clampPivot(T.p, T.zoom), sp);
+    }
+    const k = 1 - Math.exp(-dt * 16);
+    C.yaw += (T.yaw - C.yaw) * k; C.pitch += (T.pitch - C.pitch) * k; C.zoom *= (T.zoom / C.zoom) ** k; C.p.lerp(T.p, k);
   }
-  const k = .16;
-  C.yaw += (T.yaw - C.yaw) * k; C.pitch += (T.pitch - C.pitch) * k; C.zoom += (T.zoom - C.zoom) * k; C.p.lerp(T.p, k);
   pose(C, camera);
-  if (deep && deepArmed) { if (now - lastDeep > 300) { lastDeep = now; deep.update(); } deep.upload(now); }
-  layoutPins();
+  const sig = `${C.p.x.toFixed(2)},${C.p.y.toFixed(2)},${C.yaw.toFixed(3)},${C.pitch.toFixed(3)},${C.zoom.toFixed(4)}`;
+  if (sig !== lastSig) { lastSig = sig; needRender = pinsDirty = true; camMoved = now; }
+  cloudMat.uniforms.uFade.value = 1 - THREE.MathUtils.smoothstep(C.zoom, 1.3, 2.4);
+  clouds.visible = cloudMat.uniforms.uFade.value > .01;
+  if (deep) {
+    if (camMoved >= lastDeep && now - lastDeep > 300) { lastDeep = now; deep.update(); }
+    if (deep.upload(now)) needRender = true;
+  }
+  if (pinsDirty) { pinsDirty = false; layoutPins(); }
+  if (water) {
+    Object.assign(ws, { time: now / 1000, dt, tick, clock, sunElevation: sunEl, day, rain, zoom: C.zoom }); ws.sunDir.copy(U.uKeyDir.value);
+    try { if (water.update?.(dt, ws)) needRender = true; } catch (e) { dropWater(e); }
+  }
+  if (lights) {
+    if (!water) { Object.assign(ws, { time: now / 1000, dt, tick, clock, sunElevation: sunEl, day, rain, zoom: C.zoom }); ws.sunDir.copy(U.uKeyDir.value); }
+    try { if (lights.update?.(dt, ws)) needRender = true; }
+    catch (e) { console.warn('lights.js gaf een fout, lampjes uit:', e.message); try { world.remove(lights.group); lights.dispose?.(); } catch {} lights = null; }
+  }
+  if (!needRender) return;
+  needRender = false; stats.renders++;
   pu.uFocus.value = C.p.clone().project(camera).y * .5 + .5;
-  pu.uTime.value = now / 1000;
   renderer.setRenderTarget(sceneRT); renderer.render(world, camera);
   renderer.setRenderTarget(null); renderer.render(postScene, quadCam);
-  requestAnimationFrame(frame);
+  if (!loaded) { loaded = true; $('load').classList.add('gone'); setTimeout(showHint, 900); }
 }
 requestAnimationFrame(frame);
-if (!small && !Q.has('set')) data.passes('hi').then((p) => {   // progressive: sharp hi set replaces lo when it is in
-  for (const t of [U.tAlb.value, U.tLm.value, U.tWin.value]) t?.dispose();
-  U.tAlb.value = p.alb; U.tLm.value = p.lm; U.tWin.value = p.win; U.uHasWin.value = !!p.win;
-  if (p.ground) { U.tGround.value = p.ground; U.uHasGround.value = true; }
-  IW = p.alb.image.width; IH = p.alb.image.height; U.uImg.value.set(IW, IH);
-  SET = 'hi';
-}).catch((e) => console.info('hi-set niet geladen, blijft lo:', e.message));
-window.__viewer = { pins: () => pins.filter((b) => !b.hidden).map((b) => ({ n: b.cluster.m.length, t: b.cluster.m.map((h) => h.titel), x: b.cluster.x, y: b.cluster.y })), deep: () => deep?.state(), highlights, openCard, closeCard, data: data.base, get set() { return SET; }, T, C, LIM, setRain, toScreen: (h) => screenOf(h.world, camera) };   // for tests
+window.__viewer = { pins: () => pins.filter((b) => !b.hidden).map((b) => ({ n: b.cluster.m.length, t: b.cluster.m.map((h) => h.titel), x: b.cluster.x, y: b.cluster.y, kind: b.dataset.kind })),
+  deep: () => deep?.state(), highlights, openCard, closeCard, data: data.base, get set() { return SET; }, T, C, LIM, setRain, toScreen: (h) => screenOf(h.world, camera),
+  ground: (x, y) => { const h = hitPlane(x, y, camera, target0.z); return h ? [h.x, h.y] : [0, 0]; },
+  stats, get flying() { return !!flight; }, get water() { return !!water; }, get lights() { return !!lights; }, get clock() { return clock; }, tiles: data.tiles.size };   // for tests
