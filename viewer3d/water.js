@@ -1,11 +1,11 @@
 // Living sea for the clay diorama: dark teal resin with swell that travels in from the fjord into Vågen and
 // Puddefjorden, shore foam, swash + wet sand, caustics, fish, rain rings and warm window reflections at night.
 // One shader pass over a copy of the water meshes + the strip of terrain along the shore. Contract: WATER-CONTRACT.md.
-// Field (water/field.png, tile raster like ground_top.png): R = shore distance + 40 m, GB = swell phase (cos, sin) x amp.
+// Field (water/field.webp, tile raster like ground_top.png): R = shore distance + 40 m, GB = swell phase (cos, sin) x amp.
 // Built by water-lab/scripts/make_field.py; lagen en keuzes in water-lab/WATER.md.
 import * as THREE from 'three';
 
-const FIELD = new URL('./water/field.png', import.meta.url).href;
+const FIELD = new URL('./water/field.webp', import.meta.url).href;
 
 const FRAG = (COMMON, TONE) => `
 precision highp float;

@@ -149,7 +149,7 @@ async function loadSet(base) {
   const [alb, lm, win, ground, gltf] = await Promise.all([
     getBlob(`${dir}/${file('albedo')}`, 2e6).then((b) => tex(b, true)),
     getBlob(`${dir}/${file('lightmap')}`, 2e6).then((b) => /16-bit/i.test(lmDesc) ? png(b).then((p) => floatTex(p, 4)) : tex(b, /srgb/i.test(lmDesc))),
-    has('windows') ? optional(getBlob(`${dir}/${file('windows')}`, 3e5).then((b) => tex(b))) : null,
+    has('windows') ? optional(getBlob(`${dir}/${file('windows')}`, 3e5).then((b) => tex(b)).then((t) => { t.format = THREE.RedFormat; return t; })) : null,   // mask: 1 channel, 19 -> 5 MB GPU
     has('ground_top') ? optional(getBlob(`${base}/${file('ground_top')}`, 1.1e6).then(groundTex)) : null,
     getBlob(`${base}/${file('scene', '.glb')}`, 3.7e6).then(async (b) => {
       const u = URL.createObjectURL(b);
@@ -229,7 +229,8 @@ function projRay(u, v, z) {   // ground point at height z seen by the render cam
 }
 
 // depth from the render camera (shadow-map style): fragments behind something else get plain clay, not its facade
-const DW = Math.min(renderer.capabilities.maxTextureSize, 4096), DH = Math.round(DW * IH / IW);
+const DW = Math.min(renderer.capabilities.maxTextureSize, small ? 2048 : 4096),   // tablets/phones: 2048 (9 MB instead of 36 MB; screenshots: no new facade stains)
+      DH = Math.round(DW * IH / IW);
 const depthRT = new THREE.WebGLRenderTarget(DW, DH, { depthTexture: new THREE.DepthTexture(DW, DH) });
 
 // ---------- lighting basis: lightmap R/G/B = sun from meta.light_dirs (world) ----------
@@ -256,7 +257,7 @@ const U = {
   tAlb: { value: data.alb }, tLm: { value: data.lm }, tWin: { value: data.win }, tGround: { value: data.ground },
   tDepth: { value: depthRT.depthTexture }, uHasWin: { value: !!data.win }, uHasGround: { value: !!data.ground },
   uProj: { value: projMat }, uProjV: { value: projCam.matrixWorldInverse }, uProjPos: { value: projCam.position },
-  uNF: { value: new THREE.Vector2(dn, df) }, uImg: { value: new THREE.Vector2(IW, IH) }, uBias: { value: 7.5 * mppD }, uCell: { value: Math.max(12, 55 * mppD) },
+  uNF: { value: new THREE.Vector2(dn, df) }, uImg: { value: new THREE.Vector2(IW, IH) }, uBias: { value: 7.5 * mppD * 4096 / DW }, uCell: { value: Math.max(12, 55 * mppD) },
   uKeyW: { value: new THREE.Vector3() }, uFillW: { value: new THREE.Vector3() },
   uKeyDir: { value: new THREE.Vector3() }, uFillDir: { value: new THREE.Vector3() },
   uKeyCol: { value: new THREE.Vector3() }, uFillCol: { value: new THREE.Vector3() }, uAmb: { value: new THREE.Vector3() },
@@ -409,13 +410,22 @@ const deep = TL ? (() => {
   // which tiles exist: complete_levels have all, partial_levels list "x_y"; without that info every tile is assumed present
   const avail = (z, x, y) => data.tiles.has(`${passList[0]}/${z}/${x}_${y}`);   // listed in meta (fetched lazily)
   const best = (z, x, y) => { for (let k = 0; z - k >= 1; k++) if (avail(z - k, x >> k, y >> k)) return z - k; return 0; };   // missing tile: fall back to its parent
-  const layers = {};
+  // the atlas lives only on the GPU: each slot is painted in a small scratch canvas and uploaded on its own
+  // (re-uploading a whole 3072² canvas took 40-80 ms per pass, the hitch while zooming), no 2D atlas canvases in RAM
+  const layers = {}, gl = renderer.getContext(), scratch = document.createElement('canvas'), sctx = scratch.getContext('2d');
   for (const pass of passList) {
-    const cv = Object.assign(document.createElement('canvas'), { width: ATLAS, height: ATLAS });
-    const t = new THREE.CanvasTexture(cv);
-    t.colorSpace = pass === 'albedo' || /srgb/i.test(meta.passes?.[Object.keys(meta.passes || {}).find((k) => k.startsWith('lightmap.'))] || '') ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-    t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4;
-    layers[pass] = { ctx: cv.getContext('2d'), t };
+    const rt = new THREE.WebGLRenderTarget(ATLAS, ATLAS, { depthBuffer: false, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter,
+      colorSpace: pass === 'albedo' || /srgb/i.test(meta.passes?.[Object.keys(meta.passes || {}).find((k) => k.startsWith('lightmap.'))] || '') ? THREE.SRGBColorSpace : THREE.NoColorSpace });
+    rt.texture.anisotropy = 4;
+    renderer.setRenderTarget(rt); renderer.clear(); renderer.setRenderTarget(null);   // allocates it (alpha 0 = no tile yet)
+    layers[pass] = { t: rt.texture, drawn: [] };
+  }
+  const bindAtlas = (L) => renderer.state.bindTexture(gl.TEXTURE_2D, renderer.properties.get(L.t).__webglTexture);
+  function put(L, x, y) {   // scratch -> atlas at canvas position (x, y) from the top, rows flipped like a CanvasTexture
+    bindAtlas(L);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, L.t.colorSpace === THREE.NoColorSpace ? gl.NONE : gl.BROWSER_DEFAULT_WEBGL);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, x, ATLAS - y - scratch.height, gl.RGBA, gl.UNSIGNED_BYTE, scratch);
   }
   // decoded tiles, at the size their atlas slot needs (a full 2560x1440 tile is 15 MB of RAM); budget in bytes, so the
   // tiles of the current region always fit (the atlas itself is at most 2 x ATLAS^2 x 4 bytes) and nothing thrashes
@@ -433,43 +443,54 @@ const deep = TL ? (() => {
       if (old) { cache.delete(k); bytes -= old.width * old.height * 4; old.close?.(); }
       cache.set(k, b); bytes += b.width * b.height * 4;
       while (bytes > BUDGET && cache.size > 1) { const [ok, ob] = cache.entries().next().value; cache.delete(ok); bytes -= ob.width * ob.height * 4; ob.close?.(); }
-      redraw();
+      dirty = true;
     }, () => failed.add(k)), () => {}).finally(() => loading.delete(k));
   }
-  // paint every slot with the sharpest tile that is loaded (an ancestor, cropped, until the real one arrives)
+  // paint every slot with the sharpest tile that is loaded (an ancestor, cropped, until the real one arrives);
+  // only slots whose source changed are uploaded. Returns true when something was uploaded.
   function redraw() {
-    if (!cur) return;
+    if (!cur) return false;
     const { z, x0, y0, rc, rr, sw: W, sh: H } = cur;
+    if (scratch.width !== W || scratch.height !== H) Object.assign(scratch, { width: W, height: H });
+    let changed = false;
     for (const pass of passList) {
-      const ctx = layers[pass].ctx;
-      ctx.clearRect(0, 0, ATLAS, ATLAS);
+      const L = layers[pass];
       for (let y = y0; y < y0 + rr; y++) for (let x = x0; x < x0 + rc; x++) {
         const zb = best(z, x, y);
-        if (!zb) continue;
-        fetchTile(pass, zb, x >> (z - zb), y >> (z - zb), W * 2 ** (z - zb));
-        for (let zz = zb; zz >= 1; zz--) {
-          const k = z - zz, key = `${pass}/${zz}/${x >> k}_${y >> k}`, b = cache.get(key);
-          if (!b || !avail(zz, x >> k, y >> k)) continue;
-          cache.delete(key); cache.set(key, b);   // LRU touch
-          const f = 2 ** k, fx = x - (x >> k << k), fy = y - (y >> k << k);
-          ctx.drawImage(b, fx / f * b.width, fy / f * b.height, b.width / f, b.height / f, (x - x0) * W, (y - y0) * H, W, H);
-          break;
+        let src = null, sig = '';
+        if (zb) {
+          fetchTile(pass, zb, x >> (z - zb), y >> (z - zb), W * 2 ** (z - zb));
+          for (let zz = zb; zz >= 1; zz--) {
+            const k = z - zz, key = `${pass}/${zz}/${x >> k}_${y >> k}`, b = cache.get(key);
+            if (!b || !avail(zz, x >> k, y >> k)) continue;
+            cache.delete(key); cache.set(key, b);   // LRU touch
+            const f = 2 ** k, fx = x - (x >> k << k), fy = y - (y >> k << k);
+            src = [b, fx / f * b.width, fy / f * b.height, b.width / f, b.height / f]; sig = `${key}@${b.width}`;
+            break;
+          }
         }
+        const slot = (y - y0) * rc + (x - x0);
+        if (L.drawn[slot] === sig) continue;
+        L.drawn[slot] = sig; changed = true;
+        sctx.clearRect(0, 0, W, H);
+        if (src) sctx.drawImage(...src, 0, 0, W, H);
+        put(L, (x - x0) * W, (y - y0) * H);
       }
     }
-    dirty = true;
+    return changed;
   }
+  const trees = []; root.traverse((o) => { if (o.isMesh && kindOf(o) === 'tree') trees.push(o); });
   const uvRT = new THREE.WebGLRenderTarget(32, 20), uvPx = new Uint8Array(32 * 20 * 4);
   const uvMat = new THREE.ShaderMaterial({ uniforms: { uProj: U.uProj }, side: THREE.DoubleSide,
     vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
     fragmentShader: 'uniform mat4 uProj; varying vec3 vW; void main(){ vec4 p = uProj * vec4(vW, 1.); gl_FragColor = vec4(clamp(p.xy / p.w * .5 + .5, 0., 1.), 1., 1.); }' });
-  function update() {
+  function update(moving) {   // returns true when it kept the old region because the camera moves (call again later)
     let u0 = 1, v0 = 1, u1 = 0, v1 = 0;
     // what the screen really shows, in render-image uv: a tiny uv render of the scene (mountains, roofs and all)
-    const cv = clouds.visible;
-    world.overrideMaterial = uvMat; clouds.visible = false;
+    const cv = clouds.visible;   // trees (1 M triangles, half the scene) stand on the ground they hide: not needed here
+    world.overrideMaterial = uvMat; clouds.visible = false; for (const t of trees) t.visible = false;
     renderer.setRenderTarget(uvRT); renderer.render(world, camera); renderer.setRenderTarget(null);
-    world.overrideMaterial = null; clouds.visible = cv;
+    world.overrideMaterial = null; clouds.visible = cv; for (const t of trees) t.visible = true;
     renderer.readRenderTargetPixels(uvRT, 0, 0, 32, 20, uvPx);
     for (let i = 0; i < uvPx.length; i += 4) {
       if (uvPx[i + 2] < 128) continue;
@@ -492,6 +513,10 @@ const deep = TL ? (() => {
       reg = { z, n, x0, y0, rc, rr, W, H, sw: W, sh: H };
       if (W * n >= need * 1.25) break;   // a bit of oversampling: prefer the deeper level
     }
+    // while the camera moves, keep the region as long as it covers the view and is nearly sharp enough: every switch
+    // re-uploads all slots (~30 MB, the hitch while pinching); the best region follows once the camera stops
+    if (moving && cur && reg && cur.x0 / cur.n <= u0 && (cur.x0 + cur.rc) / cur.n >= u1 && cur.y0 / cur.n <= 1 - v1 && (cur.y0 + cur.rr) / cur.n >= 1 - v0
+      && cur.W * cur.n >= Math.min(need, reg.W * reg.n) * .75) return true;
     const key = reg && `${reg.z}/${reg.x0}/${reg.y0}/${reg.rc}/${reg.rr}/${reg.W}`;
     if (key !== cur?.key) {
       cur = reg && { ...reg, key };
@@ -499,14 +524,16 @@ const deep = TL ? (() => {
       if (cur) {
         U.uDRect.value.set(cur.x0 / cur.n, 1 - (cur.y0 + cur.rr) / cur.n, (cur.x0 + cur.rc) / cur.n, 1 - cur.y0 / cur.n);
         U.uDUse.value.set(cur.rc * cur.W / ATLAS, cur.rr * cur.H / ATLAS);
-        redraw();
+        for (const L of Object.values(layers)) L.drawn = [];
+        dirty = true; lastUp = 0;   // paint the new region in this frame, not 150 ms later
       }
     }
   }
-  function upload(now) {   // re-upload the atlas at most every 150 ms while tiles arrive
+  function upload(now) {   // paint changed slots at most every 150 ms while tiles arrive
     if (!dirty || now - lastUp < 150) return;
     dirty = false; lastUp = now;
-    for (const l of Object.values(layers)) l.t.needsUpdate = true;
+    if (!redraw()) return;
+    for (const L of Object.values(layers)) { bindAtlas(L); gl.generateMipmap(gl.TEXTURE_2D); }
     return true;
   }
   return { layers, update, upload, state: () => cur && { z: cur.z, x0: cur.x0, y0: cur.y0, rc: cur.rc, rr: cur.rr, slot: cur.W, cached: cache.size, cachedMB: Math.round(bytes / 2 ** 20), failed: failed.size, uv: lastUv?.map((v) => +v.toFixed(3)) } };
@@ -564,6 +591,9 @@ world.overrideMaterial = new THREE.ShaderMaterial({ uniforms: U, side: THREE.Dou
       gl_FragColor = vec4(1.); }` });
 renderer.setRenderTarget(depthRT); renderer.render(world, projCam); renderer.setRenderTarget(null);
 world.overrideMaterial = null;
+// only depthRT.depthTexture is read from now on: free the colour attachment (4096x2304, 36 MB of GPU memory).
+// ponytail: raw GL delete, three still thinks it exists; depthRT must never be rendered to again (and isn't)
+renderer.getContext().deleteTexture(renderer.properties.get(depthRT.texture).__webglTexture);
 
 // ---------- clouds: cotton-wool tufts drifting over the diorama; some float in the foreground now and then.
 // Clearly there when zoomed out, they fade away as you zoom in (uFade). Rain makes them greyer, not more.
@@ -1186,7 +1216,7 @@ function updateLight(tick) {
   cloudMat.uniforms.uGrey.value = r;
   placeClouds(tick);
 }
-let lastTick = -1, lastDeep = 0, camMoved = 0, lastSig = '', lastT = performance.now(), loaded = false;
+let lastTick = -1, lastDeep = 0, deepLater = false, camMoved = 0, lastSig = '', lastT = performance.now(), loaded = false;
 const stats = { frames: 0, renders: 0 };
 function frame(now) {
   requestAnimationFrame(frame);
@@ -1212,7 +1242,7 @@ function frame(now) {
   U.uCalm.value = THREE.MathUtils.smoothstep(C.zoom, 1.3, 2.5);
   clouds.visible = cloudMat.uniforms.uFade.value > .01;
   if (deep) {
-    if (camMoved >= lastDeep && now - lastDeep > 300) { lastDeep = now; deep.update(); }
+    if ((camMoved >= lastDeep || deepLater) && now - lastDeep > 300) { lastDeep = now; deepLater = deep.update(now - camMoved < 150); }
     if (deep.upload(now)) needRender = true;
   }
   if (pinsDirty) { pinsDirty = false; layoutPins(); }
