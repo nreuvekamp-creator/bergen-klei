@@ -1,7 +1,7 @@
 // Ulriken-top 's nachts: de Lysdansen (kleurwisselende LED-spots op de TV-mast) + rode luchtvaartlichten + zachte gloed.
 // Hook (main.js): createLights(ctx) -> { group, update(dt, state), dispose }; ctx/state zie WATER-CONTRACT.md.
 // Posities in wereldmeters uit meta.json.lights.ulriken (renders-centrum), anders uit ./lights/ulriken.json (publish.sh stript meta).
-// Bronnen en aannames: renders-centrum-patch/ULRIKEN.md. Stop-motion: kleuren wisselen op de 8 fps-klok (state.tick).
+// Bronnen en aannames: renders-centrum-patch/ULRIKEN.md (fontein: lights/fountain.js, FONTEIN.md). Stop-motion: kleuren wisselen op de 8 fps-klok (state.tick).
 
 async function loadSpec() {
   const base = new URLSearchParams(location.search).get('data') || '../renders-centrum';
@@ -13,7 +13,9 @@ async function loadSpec() {
 }
 
 export async function createLights(ctx) {
-  const parts = (await Promise.all([createUlriken(ctx), createPaths(ctx).catch((e) => { console.info('lovstien.json niet gebruikt:', e.message); return null; })])).filter(Boolean);
+  const fountain = new URLSearchParams(location.search).get('fontein') === '0' ? null   // ?fontein=0: zonder fontein (vergelijken)
+    : import('./lights/fountain.js').then((m) => m.createFountain(ctx)).catch((e) => { console.info('fontein niet gebruikt:', e.message); return null; });
+  const parts = (await Promise.all([createUlriken(ctx), createPaths(ctx).catch((e) => { console.info('lovstien.json niet gebruikt:', e.message); return null; }), fountain])).filter(Boolean);
   const group = new ctx.THREE.Group(); group.name = 'lights'; parts.forEach((p) => group.add(p.group));
   return {
     group,

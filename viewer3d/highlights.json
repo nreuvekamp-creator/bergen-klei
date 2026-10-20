@@ -1,5 +1,5 @@
 {
-  "_uitleg": "Eén item per plek. Koppeling: 'plek' (sleutel of naam van een plek in meta.json: landmarks/plekken/offscreen), anders 'lat'/'lon' (omgerekend via de plekken in meta.json). Alleen plekken die in de render liggen worden getoond. 'categorie': toerist of samen. 'weer' (regen/zon) komt als tekst in het kaartje. 'foto' (url) is optioneel. Recept-velden (optioneel): 'dosering' (handgeschreven 'Sig.'-regel), 'waar', 'wanneer'.",
+  "_uitleg": "Eén item per plek. Koppeling: 'plek' (sleutel of naam van een plek in meta.json: landmarks/plekken/offscreen), anders 'lat'/'lon' (omgerekend via de plekken in meta.json). Alleen plekken die in de render liggen worden getoond. 'categorie': toerist of samen. 'weer' (regen/zon) komt als tekst in het kaartje. 'foto' (url) is optioneel. Recept-velden (optioneel): 'dosering' (handgeschreven 'Sig.'-regel), 'waar', 'wanneer'. 'website' (url) wordt een link in het kaartje (nieuwe tab). Geen sauna-plekken (Heit, Nordnes Sjøbad): die zijn een geheim recept in het dossier.",
   "items": [
     {
       "titel": "Bryggen bezoeken",
@@ -74,18 +74,6 @@
       "waar": "Herman Foss gate 12"
     },
     {
-      "titel": "Floating sauna Heit",
-      "tekst": "Drijvende sauna bij Marineholmen: warm zitten, koud plonzen.",
-      "weer": "zon",
-      "kosten": "",
-      "lat": 60.3825,
-      "lon": 5.3225,
-      "categorie": "samen",
-      "plek": "heit",
-      "dosering": "Afwisselend warm en koud, tot je je beter voelt.",
-      "waar": "Marineholmen"
-    },
-    {
       "titel": "ParkN, spellencafé",
       "tekst": "Loungebar met een spellenlounge: zo'n 50 bordspellen, van Catan en Ticket to Ride Nordic tot Pandemic, Codenames en Terraforming Mars. Binnen, dus ook bij regen.",
       "weer": "regen",
@@ -96,7 +84,8 @@
       "categorie": "samen",
       "dosering": "Cognitieve training: 1 spel per sessie, max 3 uur. Gunstig voor geheugen en stemming.",
       "waar": "Engen 20, bij Ole Bulls plass",
-      "wanneer": "Di en wo 14 tot 23, do 14 tot 01, vr en za 11 tot 01. Vanaf 19:00 20 jaar; vr/za-avond eerst reserveren via BOOK op parkn.no"
+      "wanneer": "Di en wo 14 tot 23, do 14 tot 01, vr en za 11 tot 01. Vanaf 19:00 20 jaar; vr/za-avond eerst reserveren via BOOK op parkn.no",
+      "website": "https://parkn.no/"
     },
     {
       "titel": "Ulriken",

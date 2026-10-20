@@ -44,7 +44,7 @@ addEventListener('klei:ready', () => setTimeout(async () => {
   if (!SW.controller) return;
   const zOf = (k) => +k.split('/')[1];
   const tilesByZ = [...data.tiles.urls].sort((a, b) => zOf(a[0]) - zOf(b[0])).map((e) => e[1]);
-  const seen = performance.getEntriesByType('resource').map((e) => e.name).filter((u) => /^https?:/.test(u) && !/api\.met\.no/.test(u));
+  const seen = performance.getEntriesByType('resource').map((e) => e.name).filter((u) => /^https?:/.test(u) && !/api\.met\.no/.test(u) && !otherMap().test(u));   // not the other render's meta.json
   const list = [...new Set([location.href, new URL('../', location.href).href, ...seen, ...tilesByZ])];
   let i = 0, ok = 0;
   const worker = async () => { while (i < list.length) await fetch(list[i++]).then((r) => r.arrayBuffer()).then(() => ok++, () => {}); };
@@ -111,9 +111,9 @@ const tileAvail = (TL, z, x, y) => !TL.complete_levels && !TL.partial_levels
 
 // Data layout (renders-centrum and testdata): meta.json, scene.glb, ground_top, lo/ (and hi/) with albedo, lightmap, windows, tiles/.
 // File names come from meta.passes when it lists them, so only existing files are requested (no 404s).
-async function loadSet(base) {
+async function loadSet(base, meta0) {
   prog.got.clear(); prog.tot.clear();
-  const meta = await fetch(`${base}/meta.json`, { cache: 'no-cache' }).then((r) => {
+  const meta = meta0 || await fetch(`${base}/meta.json`, { cache: 'no-cache' }).then((r) => {
     if (!r.ok) throw new Error(`${base}/meta.json ${r.status}`);
     return r.json();
   });
@@ -160,11 +160,37 @@ async function loadSet(base) {
   return { base, meta, alb, lm, win, ground, gltf, tiles };
 }
 
+// ---------- which render: v3 ('nieuw') is the default as soon as its data set is complete (meta.json lists deep-zoom tiles
+// and the last tile exists); until then, or when it fails to load, v2 ('klassiek'). The menu choice is remembered.
+const MAPS = { v3: '../renders-centrum-v3', v2: '../renders-centrum' }, MAP_KEY = 'bergen-klei-kaart';
+let mapPick = null;
+try { mapPick = localStorage.getItem(MAP_KEY); } catch {}
+const v3meta = Q.has('data') ? null : await fetch(`${MAPS.v3}/meta.json`, { cache: 'no-cache' }).then((r) => r.ok ? r.json() : null).catch(() => null);
+const v3ok = await (async (TL) => {
+  if (!TL) return false;
+  const lv = TL.complete_levels?.length ? Math.max(...TL.complete_levels) : +(TL.max_z ?? TL.z_max ?? (Array.isArray(TL.levels) ? Math.max(...TL.levels) : TL.levels) ?? 1);
+  const n = 2 ** lv - 1, ext = /\.webp/.test((TL.template || TL.path || '').split(' ')[0]) ? 'webp' : 'png';
+  return fetch(`${MAPS.v3}/tiles/albedo/${lv}/${n}_${n}.${ext}`, { method: 'HEAD' }).then((r) => r.ok, () => false);
+})(v3meta?.tiles);
+let mapVer = v3ok && mapPick !== 'v2' ? 'v3' : 'v2';
 let data;
-const wanted = Q.get('data') || '../renders-centrum';
-try { data = await loadSet(wanted); } catch (e) {
-  console.info('val terug op de Bryggen-testset:', e.message);
-  data = await loadSet('testdata');
+try { data = await loadSet(Q.get('data') || MAPS[mapVer], mapVer === 'v3' && !Q.has('data') ? v3meta : undefined); } catch (e) {
+  try {
+    if (Q.has('data') || mapVer === 'v2') throw e;
+    console.info('v3 laadt niet, val terug op v2:', e.message);
+    mapVer = 'v2'; data = await loadSet(MAPS.v2);
+  } catch (e2) {
+    console.info('val terug op de Bryggen-testset:', e2.message);
+    data = await loadSet('testdata');
+  }
+}
+const otherMap = () => (mapVer === 'v3' ? /\/renders-centrum\// : /\/renders-centrum-v3\//);
+if (!Q.has('data') && 'caches' in window) {   // offline cache (sw.js): keep only the render that is shown (iPad storage)
+  const other = otherMap();
+  caches.keys().then((ks) => ks.filter((k) => k.startsWith('klei-data-')).forEach(async (k) => {
+    const c = await caches.open(k);
+    for (const r of await c.keys()) if (other.test(r.url)) c.delete(r);
+  })).catch(() => {});
 }
 const isTest = data.base === 'testdata';
 $('badge').hidden = !isTest;
@@ -880,6 +906,13 @@ const menu = $('menu'), menuBtn = $('menu-btn');
 const setMenu = (open) => { menu.classList.toggle('closed', !open); menuBtn.setAttribute('aria-expanded', String(open)); };
 menuBtn.onclick = () => setMenu(menu.classList.contains('closed'));
 $('menu-close').onclick = () => setMenu(false);
+for (const b of document.querySelectorAll('#map-row [data-v]')) {   // v2/v3 choice: remembered, then reload with that render
+  const v = b.dataset.v;
+  b.setAttribute('aria-checked', String(v === mapVer && !isTest));
+  if (v === 'v3' && !v3ok) { b.disabled = true; b.title = 'Nieuwe kaart is nog niet klaar'; }
+  b.onclick = () => { if (v === mapVer) return; try { localStorage.setItem(MAP_KEY, v); } catch {} location.reload(); };
+}
+$('map-row').hidden = Q.has('data');
 $('time-row').onclick = () => { const tb = $('timebox'); tb.hidden = !tb.hidden; $('time-row').setAttribute('aria-expanded', String(!tb.hidden)); };
 const slider = $('slider');
 function bergenClock() {   // the real time in Bergen, in hours
@@ -984,9 +1017,12 @@ function fillCard(h) {
   $('card-cat').textContent = CATS[catOf(h)];
   $('card-text').textContent = h.tekst || '';
   const weer = { regen: 'mag ook bij regen', zon: 'bij droog weer' }[h.weer];
-  const rows = [['Sig.', h.dosering, true], ['Wanneer', h.wanneer], ['Waar', h.waar], ['Kosten', h.kosten], ['Weer', weer]].filter((r) => r[1]);
+  const rows = [['Sig.', h.dosering, true], ['Wanneer', h.wanneer], ['Waar', h.waar], ['Kosten', h.kosten], ['Weer', weer], ['Website', h.website]].filter((r) => r[1]);
+  const link = (u) => Object.assign(document.createElement('a'), { href: u, target: '_blank', rel: 'noopener', textContent: u.replace(/^https?:\/\/(www\.)?|\/$/g, '') });
   $('card-dl').replaceChildren(...rows.flatMap(([k, v, hand]) => [
-    Object.assign(document.createElement('dt'), { textContent: k }), Object.assign(document.createElement('dd'), { textContent: v, className: hand ? 'hand' : '' })]));
+    Object.assign(document.createElement('dt'), { textContent: k }),
+    k === 'Website' ? document.createElement('dd').appendChild(link(v)).parentNode
+      : Object.assign(document.createElement('dd'), { textContent: v, className: hand ? 'hand' : '' })]));
   const img = $('card-img');
   img.hidden = !h.foto;
   if (h.foto) img.src = h.foto;
@@ -1045,12 +1081,15 @@ function openCluster(c) {
 let pinsDirty = true, needRender = true;
 addEventListener('storage', (e) => { if (e.key === DOS_KEY || e.key === OWN_KEY || e.key === null) refreshDone(); });   // the dossier in another tab
 addEventListener('pageshow', () => refreshDone());   // back from the dossier (bfcache)
+{ const o = lsGet(OWN_KEY); if (o && 'heit' in o) { delete o.heit; lsSet(OWN_KEY, o); } }   // Heit is no longer a map place (secret recipe in the dossier)
 refreshDone();
+const SOLO = new Set(['bryggen']);   // the first stop: never inside a cluster, so one tap on the overview opens it
 function layoutPins() {
-  const cl = [];
+  const cl = [], solo = [];
   for (const h of highlights) {
     const [x, y, front] = screenOf(h.world, camera);
     if (!front || x < -30 || y < -30 || x > sw + 30 || y > sh + 60) continue;
+    if (SOLO.has(h.plek)) { solo.push({ x, y, m: [h] }); continue; }
     const c = cl.find((c) => Math.abs(c.x - x) < 50 && Math.abs(c.y - y) < 58);   // marker boxes (46 x 54 + badge) would touch: merge
     if (c) { c.m.push(h); c.x += (x - c.x) / c.m.length; c.y += (y - c.y) / c.m.length; } else cl.push({ x, y, m: [h] });
   }
@@ -1068,6 +1107,11 @@ function layoutPins() {
     if (c.m.length < 2 || c.m.length > 3 || C.zoom < 2.5) { shown.push(c); continue; }
     const f = c.m.map((h) => { const [x, y] = screenOf(h.world, camera); return { x, y, m: [h] }; }).sort((a, b) => a.x - b.x);
     f.forEach((q, i) => { q.tilt = (i - (f.length - 1) / 2) * (f.length === 2 ? 60 : 36); shown.push(q); });
+  }
+  for (const s of solo) {   // a solo pin next to a marker: both lean away from each other instead of merging
+    const q = shown.find((q) => Math.abs(q.x - s.x) < 50 && Math.abs(q.y - s.y) < 58);
+    if (q) { s.tilt = s.x < q.x ? -30 : 30; q.tilt ??= -s.tilt; }
+    shown.push(s);
   }
   pins.forEach((b, i) => {
     const c = shown[i];
