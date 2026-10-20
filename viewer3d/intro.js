@@ -34,7 +34,7 @@
     el.setAttribute('aria-label', 'Intro: Bergen vertelt');
     el.innerHTML = `<div class="veil"></div>
       <div class="mark"><b>℞</b>Dossier Bergen</div>
-      <button class="skip" type="button">Overslaan</button>
+      <button class="skip knop" type="button">Overslaan</button>
       <div class="stage">
         <div class="fig">${[...new Set([...STEPS, FINAL, WAIT].map((s) => s.fig))].map((f) => `<img src="${FIG(f)}" data-f="${f}" alt="">`).join('')}</div>
         <div class="bubble" aria-live="polite"><div class="label"><span></span><span></span></div><p class="say"></p><p class="note"></p><div class="bar"><i></i></div></div>
@@ -43,7 +43,7 @@
       </div>
       <div class="final"><img src="${FIG(FINAL.fig)}" alt="Bergen kijkt hoopvol omhoog naar een regenboog en de zon">
         <div class="label"><span>${FINAL.label}</span><span>${N} van ${N}</span></div><p class="say">${FINAL.say}</p>
-        <button type="button">Begin de behandeling</button></div>`;
+        <button class="knop accent" type="button">Begin de behandeling</button></div>`;
     setProgress(progress);
 
     // tap = next, swipe left/right = next/back; buttons and the final card handle themselves
@@ -78,6 +78,11 @@
     b.querySelector('.say').innerHTML = s.say;
     b.querySelector('.note').textContent = s.note || '';
     b.classList.remove('swap'); void b.offsetWidth; b.classList.add('swap');
+    // big type, but never cut off: shrink the balloon text until the stage fits (longest line, small screens)
+    const st = el.querySelector('.stage'), sk = el.querySelector('.skip').getBoundingClientRect().bottom;
+    const fits = () => [...st.children].every((c) => { const r = c.getBoundingClientRect(); return !r.height || (r.top >= sk && r.bottom <= innerHeight - 4); });
+    let fs = 1; st.style.setProperty('--fs', fs);
+    while (fs > .6 && !fits()) st.style.setProperty('--fs', fs -= .05);
     el.querySelectorAll('.dots i').forEach((d, j) => d.classList.toggle('on', j === (k || N) - 1));
     el.querySelector('.next').textContent = k === 1 ? 'tik om verder te gaan' : '';
   }

@@ -13,6 +13,132 @@ async function loadSpec() {
 }
 
 export async function createLights(ctx) {
+  const parts = (await Promise.all([createUlriken(ctx), createPaths(ctx).catch((e) => { console.info('lovstien.json niet gebruikt:', e.message); return null; })])).filter(Boolean);
+  const group = new ctx.THREE.Group(); group.name = 'lights'; parts.forEach((p) => group.add(p.group));
+  return {
+    group,
+    update(dt, s) { let r = false; for (const p of parts) r = p.update(dt, s) || r; return r; },
+    dispose() { parts.forEach((p) => p.dispose()); },
+  };
+}
+
+// nacht-factor: vol bij nacht, zwak bij schemer, uit overdag (zelfde curve als de Ulriken-mast)
+const nightK = (s) => Math.pow(Math.min(1, Math.max(0, (.62 - s.day) / .62)), 1.4);
+
+// Løvstien + Fløyen: warme lantaarns langs de verlichte paden, gloed op de Fløyen-top, lichtjes langs Fløibanen,
+// en overdag een licht grindlint over Løvstien. Posities uit ./lights/lovstien.json (centrum/patch/scripts/lights_lovstien.py).
+// Bronnen en aannames: renders-centrum-patch/LOVSTIEN.md. Eén Points-draw voor de lampjes, één voor het lint.
+async function createPaths(ctx) {
+  const { THREE, renderer, camera } = ctx;
+  const spec = (await fetch(new URL('./lights/lovstien.json', import.meta.url)).then((r) => r.json())).lovstien;
+  const funi = spec.lamps.floibanen;
+  // per lamp: kern (kind 0) + zachte grondgloed (kind 1, op de grond) + verre halo (kind 4, alleen uitgezoomd);
+  // Fløibanen kind 2; top-gloed kind 3. emph: Løvstien nadrukkelijker dan de Fløyen-paden (daar willen ze wandelen)
+  const rows = [];
+  const lamp = (p, e) => { rows.push([p, 0, 5, e]); rows.push([[p[0], p[1], p[2] - spec.lamp_height_m + 1], 1, 34, e]); rows.push([p, 4, 5, e]); };
+  spec.lamps.lovstien.forEach((p) => lamp(p, 1.5)); spec.lamps.floyen.forEach((p) => lamp(p, 1));
+  for (const p of funi) rows.push([p, 2, 4, 1]);
+  for (const g of spec.glows) rows.push([g.world, 3, g.radius_m * 3, 1]);
+  const n = rows.length, pos = new Float32Array(n * 3), size = new Float32Array(n), kind = new Float32Array(n), emph = new Float32Array(n);
+  rows.forEach(([p, k, sz, e], i) => { pos.set(p, i * 3); kind[i] = k; size[i] = sz; emph[i] = e; });
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('size', new THREE.BufferAttribute(size, 1));
+  geo.setAttribute('kind', new THREE.BufferAttribute(kind, 1));
+  geo.setAttribute('emph', new THREE.BufferAttribute(emph, 1));
+  const warm = new THREE.Color(spec.lamp_color).convertSRGBToLinear();
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { uScale: { value: 1 }, uK: { value: 0 }, uTick: { value: 0 }, uCol: { value: warm }, uPx: { value: 1 } },
+    vertexShader: /* glsl */`
+      attribute float size, kind, emph;
+      uniform float uScale, uTick, uPx;
+      varying float vK, vA, vE;
+      float h1(float x){ return fract(sin(x) * 43758.5453); }
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.);
+        mv.xyz += normalize(-mv.xyz) * (kind > 2.5 && kind < 3.5 ? 30. : 6.);   // iets naar de camera: de grove terrein-proxy mag een lampje op het pad niet verbergen
+        gl_Position = projectionMatrix * mv;
+        float px = size * uScale / -mv.z;
+        float e = emph > 1. ? 1. : 0.;
+        // minima in CSS-pixels (uPx = drawing-buffer-pixels per CSS-pixel): uitgezoomd blijft het een zichtbaar lichtsnoer
+        if (kind < .5)      { gl_PointSize = clamp(px, (3. + e) * uPx, 24. * uPx); vA = 1.; }
+        else if (kind < 1.5){ gl_PointSize = min(px, 160.); vA = .7 * smoothstep(4., 20., px); }
+        else if (kind < 2.5){ gl_PointSize = clamp(px, 2.6 * uPx, 16. * uPx); vA = 1.; }
+        else if (kind < 3.5){ gl_PointSize = clamp(px, 18. * uPx, 150.); vA = 1.; }
+        else                { gl_PointSize = (8. + 2. * e) * uPx; vA = 1. - smoothstep(4. * uPx, 9. * uPx, px); }   // verre halo, weg zodra de kern zelf groot genoeg is
+        vA *= .9 + .1 * h1(position.x * 1.3 + position.y + uTick);   // klei-flakker op de 8 fps-klok
+        vK = kind; vE = emph;
+      }`,
+    fragmentShader: /* glsl */`
+      uniform float uK; uniform vec3 uCol;
+      varying float vK, vA, vE;
+      void main() {
+        float d = length(gl_PointCoord - .5) * 2.;
+        if (d > 1. || vA < .01) discard;
+        bool ground = vK > .5 && vK < 1.5, top = vK > 2.5 && vK < 3.5, far = vK > 3.5;
+        float halo = pow(1. - d, ground ? 2.2 : top ? 2.6 : far ? 2. : 1.6);
+        float core = (vK < .5 || (vK > 1.5 && vK < 2.5)) ? smoothstep(.55, .0, d) : 0.;
+        float gain = vK < .5 ? 2. : ground ? .5 : top ? .35 : far ? .55 : 1.3;
+        float b = vK < .5 || far ? vE : 1.;
+        vec3 c = (top ? vec3(1., .78, .42) : uCol) * (halo * gain + core * 3.2) * b * vA * uK;   // top-gloed: geler, niet roze op de daken
+        gl_FragColor = vec4(c, clamp((halo * (ground ? .15 : far ? .25 : .7) + core) * vA * uK, 0., 1.));   // alpha = bloom-masker
+      }`,
+    transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
+  });
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = -1;   // vóór de wolken (transparant, renderOrder 0): een wolk dekt de lampjes af
+
+  // grindlint over Løvstien (overdag zichtbaar, 's nachts mee-donker); schrijft alpha niet (geen bloom)
+  const R = spec.ribbon.lovstien, rgeo = new THREE.BufferGeometry();
+  rgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(R.flat()), 3));
+  const U = ctx.uniforms;
+  const rmat = new THREE.ShaderMaterial({
+    uniforms: { uScale: { value: 1 }, uGravel: { value: new THREE.Color(spec.ribbon.color).convertSRGBToLinear() }, uW: { value: spec.ribbon.width_m },
+      uKeyCol: U.uKeyCol, uFillCol: U.uFillCol, uAmb: U.uAmb, uKeyDir: U.uKeyDir, uExpo: U.uExpo, uSat: U.uSat, uContrast: U.uContrast },
+    vertexShader: /* glsl */`
+      uniform float uScale, uW; varying float vA;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.);
+        mv.xyz += normalize(-mv.xyz) * 8.;   // boven de grove terrein-proxy uit, anders streepjes
+        gl_Position = projectionMatrix * mv;
+        float px = uW * uScale / -mv.z;
+        gl_PointSize = min(px, 48.);
+        vA = smoothstep(.9, 2.2, px);                       // uitgezoomd geen waas: pas als het pad een paar pixels breed is
+      }`,
+    fragmentShader: /* glsl */`
+      uniform vec3 uGravel, uKeyCol, uFillCol, uAmb, uKeyDir; uniform float uExpo, uSat, uContrast;
+      varying float vA;
+      ${ctx.shader.TONE}
+      void main() {
+        float d = length(gl_PointCoord - .5) * 2.;
+        if (d > 1. || vA < .01) discard;
+        vec3 lit = uGravel * (uKeyCol * max(uKeyDir.z, 0.) + uFillCol * .6 + uAmb) * 1.25;
+        gl_FragColor = vec4(tone(lit), vA * smoothstep(1., .6, d) * .9);
+      }`,
+    transparent: true, depthWrite: false, depthTest: true,
+    blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,   // framebuffer-alpha (bloom-masker) ongemoeid
+  });
+  const ribbon = new THREE.Points(rgeo, rmat); ribbon.frustumCulled = false; ribbon.renderOrder = -2;
+
+  const group = new THREE.Group(); group.name = 'lovstien-floyen'; group.add(ribbon, pts);
+  const size2 = new THREE.Vector2();
+  return {
+    group,
+    update(dt, s) {
+      renderer.getDrawingBufferSize(size2);
+      const sc = size2.y / (2 * Math.tan(camera.fov * Math.PI / 360));
+      rmat.uniforms.uScale.value = mat.uniforms.uScale.value = sc;
+      mat.uniforms.uPx.value = renderer.getPixelRatio();
+      const k = nightK(s);
+      pts.visible = k > .01;
+      mat.uniforms.uK.value = k; mat.uniforms.uTick.value = s.tick % 64;
+      return false;                                        // main.js tekent op camerabeweging en de stop-motion-klok
+    },
+    dispose() { geo.dispose(); mat.dispose(); rgeo.dispose(); rmat.dispose(); },
+  };
+}
+
+async function createUlriken(ctx) {
   const { THREE, renderer, camera } = ctx;
   const spec = await loadSpec();
   const A = spec.animation; const prog = A.lysdans.program;
@@ -56,7 +182,7 @@ export async function createLights(ctx) {
       }`,
     transparent: true, depthWrite: false, depthTest: true, blending: THREE.AdditiveBlending,
   });
-  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = 10;
+  const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; pts.renderOrder = -1;   // vóór de wolken (transparant, renderOrder 0): een wolk dekt de lampjes af
   const group = new THREE.Group(); group.name = 'ulriken-lights'; group.add(pts); group.visible = false;
 
   const hex = (h) => new THREE.Color(h).convertSRGBToLinear();
@@ -93,7 +219,7 @@ export async function createLights(ctx) {
     group,
     update(dt, s) {
       // nacht vol, schemer zwak, dag uit
-      const k = Math.pow(Math.min(1, Math.max(0, (.62 - s.day) / .62)), 1.4);
+      const k = nightK(s);
       group.visible = k > .01;
       if (!group.visible) return false;
       mat.uniforms.uK.value = k;

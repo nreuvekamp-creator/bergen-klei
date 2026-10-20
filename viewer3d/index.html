@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bergen, for Tess</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap">
+<link rel="preload" href="fonts/young-serif.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/figtree.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="fonts/fonts.css">
 <style>
   :root {
     --paper: #1b1714;        /* table around the diorama */
@@ -18,79 +19,98 @@
     --pen: #23408e;          /* ballpoint blue, handwritten bits */
     --accent: #d9783f;       /* terracotta clay: 'toerist' */
     --accent-samen: #d9677f; /* rose clay: 'samen' */
+    --f-kop: 'Young Serif', Georgia, serif;   /* headings: soft, round serif (only one weight: no fake bold, see font-synthesis) */
+    --f-tekst: Figtree, system-ui, sans-serif;   /* running text, buttons */
+    --f-hand: Caveat, 'Bradley Hand', cursive;   /* handwriting: SIG., signature */
     --radius: 14px;
     --gutter: 16px;
     --shadow: 0 1px 1px rgba(40, 25, 10, .18), 0 10px 30px -8px rgba(20, 10, 0, .45);
   }
   * { box-sizing: border-box; }
+  html { font-synthesis: style; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
-    font: 15px/1.45 Inter, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    font: 15px/1.45 var(--f-tekst); -webkit-tap-highlight-color: transparent; }
   canvas { position: fixed; inset: 0; width: 100vw; height: 100dvh; display: block; touch-action: none; cursor: grab; }
   canvas.dragging { cursor: grabbing; }
   button { font: inherit; color: inherit; }
   [hidden] { display: none !important; }
-  .paper { position: fixed; background: var(--cream); color: var(--ink); border-radius: var(--radius); box-shadow: var(--shadow);
-    background-image: radial-gradient(rgba(120, 90, 50, .05) 1px, transparent 1.2px); background-size: 5px 5px; }
-  .hand { font-family: Caveat, 'Bradley Hand', cursive; color: var(--pen); }
+  .paper { position: fixed; background: var(--cream) url(ui/papier.webp) 0 0 / 256px 256px repeat; color: var(--ink); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  /* ---------- UI kit (ui/UI-KIT.md): clay buttons as 9-slice border-image, round buttons / tick box via ::before ---------- */
+  .knop { border: 0; background: none; min-height: 36px; padding: 0 16px; cursor: pointer; color: var(--ink);
+    border-image: url(ui/knop-neutraal-rust.webp) 44 fill / 22px / 8px stretch; }
+  .knop:active, .knop[aria-pressed=true] { border-image-source: url(ui/knop-neutraal-in.webp); transform: translateY(1px); }
+  .knop.accent { color: #fff; border-image-source: url(ui/knop-accent-rust.webp); }
+  .knop.accent:active { border-image-source: url(ui/knop-accent-in.webp); }
+  .rond, .vink { position: relative; isolation: isolate; border: 0; padding: 0; background: none; cursor: pointer; }
+  .rond::before, .vink::before { content: ""; position: absolute; inset: -10.87%; z-index: -1; background: url(ui/knop-rond-rust.webp) center / 100% 100% no-repeat; }
+  .rond:active::before { background-image: url(ui/knop-rond-in.webp); }
+  .rond:active { transform: translateY(1px); }
+  .vink::before { background-image: url(ui/vinkje-leeg.webp); }
+  [aria-pressed=true] > .vink::before { background-image: url(ui/vinkje-aan.webp); }
+  .hand { font-family: var(--f-hand); color: var(--pen); }
 
   /* ---------- title card + menu ---------- */
   #title { top: max(var(--gutter), env(safe-area-inset-top)); left: var(--gutter); width: max-content; max-width: min(440px, calc(100vw - 2 * var(--gutter))); padding: 10px 14px 12px 10px; z-index: 3; }
   #title .top { display: flex; gap: 8px; align-items: flex-start; }
-  #menu-btn { flex: none; width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--rule); background: rgba(255,255,255,.5); cursor: pointer; display: grid; place-items: center; padding: 0; }
+  #menu-btn { flex: none; width: 42px; height: 42px; display: grid; place-items: center; }
   #menu-btn svg { width: 18px; height: 18px; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; fill: none; }
-  #menu-btn[aria-expanded=true] { background: var(--cream-2); }
-  #title h1 { margin: 1px 0 0; font: 600 21px/1.1 Fraunces, Georgia, serif; letter-spacing: .2px; }
+  #menu-btn[aria-expanded=true]::before { background-image: url(ui/knop-rond-in.webp); }
+  #title h1 { margin: 1px 0 0; font: 600 21px/1.1 var(--f-kop); letter-spacing: .2px; }
   #title h1 .rx { font-weight: 500; color: var(--stamp); margin-right: 4px; }
   #title p { margin: 2px 0 0; color: var(--ink-soft); font-size: 12.5px; }
   #title .badge { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 6px; background: rgba(181,68,58,.12); color: var(--stamp); font-size: 11px; }
-  #legend { display: flex; flex-wrap: nowrap; gap: 6px; margin: 10px 0 0; }
-  @media (max-width: 420px) { #legend { flex-wrap: wrap; } }
-  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px 5px 6px; white-space: nowrap; border-radius: 8px; border: 1px dashed rgba(80,60,40,.35);
-    background: transparent; color: var(--ink); font: 500 12px Inter, sans-serif; cursor: pointer; }
-  .chip svg { width: 16px; height: 18px; flex: none; }
-  .chip .box { width: 13px; height: 13px; border: 1.5px solid var(--ink-soft); border-radius: 3px; display: grid; place-items: center; font: 700 13px/1 Caveat, cursive; color: var(--pen); }
-  .chip[aria-pressed=true] .box::after { content: "✓"; transform: translate(1px, -2px) scale(1.4); }
-  .chip[aria-pressed=false] { color: var(--ink-soft); }
-  .chip[aria-pressed=false] svg { opacity: .4; filter: grayscale(1); }
+  /* voortgang: rustig, onder de ondertitel */
+  #progress { display: flex; flex-direction: column-reverse; gap: 4px; margin: 5px 0 0; color: var(--ink-soft); font-size: 12.5px; }
+  #progress .bar { display: block; width: 100%; height: 5px; border-radius: 4px; background: var(--cream-2); overflow: hidden; box-shadow: inset 0 1px 1px rgba(0,0,0,.1); }
+  #progress .bar i { display: block; height: 100%; width: 0; background: var(--pen); border-radius: 4px; transition: width .4s; }
+  #progress.all { color: var(--pen); }
   #menu { top: calc(max(var(--gutter), env(safe-area-inset-top)) + 8px); left: var(--gutter); width: min(340px, calc(100vw - 2 * var(--gutter))); padding: 6px; z-index: 4;
     transform-origin: top left; transition: opacity .18s, transform .18s; }
   #menu.closed { opacity: 0; transform: translateY(-6px) scale(.98); pointer-events: none; }
   #menu .row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 10px; border: 0; background: none; border-radius: 9px; cursor: pointer; text-align: left; font-size: 15px; }
-  #menu .row:hover { background: rgba(80,60,40,.06); }
+  #menu .row { color: var(--ink); text-decoration: none; border: 8px solid transparent; margin: -4px 0; }
+  #menu .row:hover, #menu .row:active { border-image: url(ui/knop-neutraal-rust.webp) 44 fill / 22px / 0 stretch; }
+  #menu .row:active { border-image-source: url(ui/knop-neutraal-in.webp); }
   #menu .row .ico { width: 22px; text-align: center; font-size: 17px; }
   #menu .row .val { margin-left: auto; color: var(--ink-soft); font-variant-numeric: tabular-nums; font-size: 14px; }
   #menu hr { border: 0; border-top: 1px solid var(--rule); margin: 4px 8px; }
   #menu .close-row { display: flex; justify-content: flex-end; padding: 2px 2px 0; }
-  #menu-close { width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(80,60,40,.07); cursor: pointer; font-size: 18px; line-height: 1; }
+  #menu-close { width: 36px; height: 36px; font-size: 18px; line-height: 1; }
   #timebox { padding: 2px 10px 10px 42px; }
   #timebox .now { display: flex; align-items: baseline; justify-content: space-between; }
-  #phase { font: 500 16px Fraunces, Georgia, serif; }
-  #clock { font: 600 15px Inter, sans-serif; font-variant-numeric: tabular-nums; }
+  #phase { font: 500 16px var(--f-kop); }
+  #clock { font: 600 15px var(--f-tekst); font-variant-numeric: tabular-nums; }
   input[type=range] { width: 100%; margin: 8px 0 2px; accent-color: var(--accent); height: 28px; }
   #stops { display: flex; justify-content: space-between; flex-wrap: wrap; }
-  #stops button { background: none; border: 0; color: var(--ink-soft); font: 12px Inter, sans-serif; padding: 6px 2px; cursor: pointer; }
+  #stops button { background: none; border: 0; color: var(--ink-soft); font: 12px var(--f-tekst); padding: 6px 2px; cursor: pointer; }
   #stops button.on { color: var(--ink); font-weight: 600; }
-  .switch { position: relative; width: 42px; height: 24px; flex: none; border-radius: 999px; background: rgba(80,60,40,.22); transition: background .2s; }
-  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .2s; }
-  [aria-checked=true] > .switch { background: var(--accent); }
-  [aria-checked=true] > .switch::after { transform: translateX(18px); }
+  /* switch: a pressed-in clay groove (neutral, red when on) with a round clay knob; built from the kit, no own texture */
+  .switch { position: relative; width: 46px; height: 26px; flex: none; border-image: url(ui/knop-neutraal-in.webp) 44 fill / 13px / 3px stretch; }
+  .switch::after { content: ""; position: absolute; top: -3px; left: -4px; width: 32px; height: 32px; background: url(ui/knop-rond-rust.webp) center / 100% 100% no-repeat; transition: transform .2s; }
+  [aria-checked=true] > .switch { border-image-source: url(ui/knop-accent-in.webp); }
+  [aria-checked=true] > .switch::after { transform: translateX(22px); }
   #auto { padding: 8px 0 4px; font-size: 13px; color: var(--ink-soft); }
   #auto .lbl { flex: 1; }
 
   /* ---------- prescription card ---------- */
+  #card-wrap { position: fixed; inset: 0; z-index: 2; pointer-events: none; filter: drop-shadow(0 8px 14px rgba(20, 10, 0, .45)); }   /* the mask below would cut a shadow on #card itself */
   #card { top: max(var(--gutter), env(safe-area-inset-top)); right: var(--gutter); width: 360px; max-height: calc(100dvh - 2 * var(--gutter));
-    overflow: auto; padding: 18px 20px 14px; opacity: 0; transform: translateX(16px) rotate(.6deg); pointer-events: none; transition: opacity .3s, transform .3s; z-index: 2;
-    border-top: 6px solid var(--accent); }
-  #card.samen { border-top-color: var(--accent-samen); }
+    overflow: auto; padding: 30px 20px 14px; opacity: 0; transform: translateX(16px) rotate(.6deg); pointer-events: none; transition: opacity .3s, transform .3s;
+    border-radius: 0 0 var(--radius) var(--radius); box-shadow: none; --cat: var(--accent);
+    -webkit-mask: url(ui/papier-rand.webp) 0 0 / 360px 24px repeat-x, linear-gradient(#000, #000) 0 23px / 100% calc(100% - 23px) no-repeat;
+            mask: url(ui/papier-rand.webp) 0 0 / 360px 24px repeat-x, linear-gradient(#000, #000) 0 23px / 100% calc(100% - 23px) no-repeat; }
+  #card.samen { --cat: var(--accent-samen); }
   #card.open { opacity: 1; transform: rotate(.6deg); pointer-events: auto; }
-  #card .head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--rule); color: var(--ink-soft); font-size: 11.5px; letter-spacing: .4px; text-transform: uppercase; }
-  #card .head .rx { font: 600 30px/1 Fraunces, Georgia, serif; color: var(--stamp); text-transform: none; letter-spacing: 0; }
+  #card .head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--cat); color: var(--ink-soft); font-size: 11.5px; letter-spacing: .4px; text-transform: uppercase; }
+  #card .head .rx { font: 600 30px/1 var(--f-kop); color: var(--stamp); text-transform: none; letter-spacing: 0; }
+  #card .head { padding-right: 40px; }
   #card .head .who { flex: 1; }
   #card .foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
   #card-cat { flex: none; padding: 3px 8px 2px; border: 2px solid var(--stamp); border-radius: 6px; color: var(--stamp);
-    font: 700 10.5px/1.3 Inter, sans-serif; letter-spacing: 1.2px; text-transform: uppercase; transform: rotate(-7deg); opacity: .78; mix-blend-mode: multiply;
-    -webkit-mask-image: radial-gradient(circle at 30% 40%, #000 55%, rgba(0,0,0,.55) 100%); mask-image: radial-gradient(circle at 30% 40%, #000 55%, rgba(0,0,0,.55) 100%); max-width: 150px; text-align: center; }
-  #card h2 { margin: 14px 0 8px; font: 600 22px/1.2 Fraunces, Georgia, serif; }
+    font: 700 10.5px/1.3 var(--f-tekst); letter-spacing: .7px; text-transform: uppercase; transform: rotate(-7deg); opacity: .78; mix-blend-mode: multiply;
+    -webkit-mask: url(ui/stempel-korrel.webp) 0 0 / 256px 256px; mask: url(ui/stempel-korrel.webp) 0 0 / 256px 256px; max-width: 175px; text-align: center; }
+  #card h2 { margin: 14px 0 8px; font: 600 22px/1.2 var(--f-kop); }
   #card .txt { margin: 0 0 10px; color: var(--ink); }
   #card dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; padding: 10px 0 2px; border-top: 1px dashed var(--rule); font-size: 14px; }
   #card dt { color: var(--ink-soft); font-size: 11.5px; letter-spacing: .5px; text-transform: uppercase; padding-top: 2px; }
@@ -98,10 +118,20 @@
   #card dd.hand { font-size: 21px; line-height: 1.05; }
   #card img { display: block; width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: 8px; margin: 8px 0 10px; }
   #card .sign { text-align: right; margin: 0 4px 0 0; white-space: nowrap; font-size: 19px; transform: rotate(-2deg); }
-  #close { position: absolute; top: 8px; right: 8px; width: 36px; height: 36px; border-radius: 50%; border: 0;
-    background: rgba(80,60,40,.07); font-size: 20px; line-height: 1; cursor: pointer; }
+  /* afvink-knop (.knop-afvink) en TOEGEDIEND-stempel (.stempel-toegediend) */
+  .knop-afvink { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 60px; margin: 14px 0 0; padding: 4px 14px 4px 10px; text-align: left; font: 600 15px var(--f-tekst); }
+  .knop-afvink .vink { flex: none; width: 42px; height: 42px; pointer-events: none; }
+  .knop-afvink .sub { display: block; font: 400 12px var(--f-tekst); color: var(--ink-soft); }
+  .knop-afvink[aria-pressed=true] { color: #2f6b3a; }
+  .stempel-toegediend { position: absolute; top: 70px; right: 10px; width: 162px; height: 76px; background: url(ui/stempel-toegediend.webp) 0 0 / 100% 100%;
+    transform: rotate(-6deg); mix-blend-mode: multiply; pointer-events: none; }
+  .stempel-toegediend time { position: absolute; left: 47px; top: 42px; width: 94px; height: 16px; text-align: center; font: 700 17px/16px var(--f-hand); color: var(--pen); }
+  #card.done .stempel-toegediend { animation: stamp .35s ease-out; }
+  @keyframes stamp { from { transform: rotate(-6deg) scale(1.6); opacity: 0; } }
+  #card.done h2 { padding-right: 150px; min-height: 64px; }
+  #close { position: absolute; top: 26px; right: 10px; width: 36px; height: 36px; font-size: 20px; line-height: 1; }
   #card-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
-  #card-nav button { height: 36px; min-width: 40px; border-radius: 9px; border: 1px solid var(--rule); background: rgba(255,255,255,.55); cursor: pointer; padding: 0 10px; font-size: 13.5px; }
+  #card-nav button { height: 38px; min-width: 38px; font-size: 13.5px; }
   #card-nav svg { width: 12px; height: 12px; fill: none; stroke: var(--ink); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; vertical-align: -1px; }
   #back { margin-right: auto; }
   #count { color: var(--ink-soft); font-size: 12.5px; font-variant-numeric: tabular-nums; }
@@ -117,11 +147,19 @@
   /* ---------- clay markers ---------- */
   #pins { position: fixed; inset: 0; pointer-events: none; z-index: 1; }
   #pins button { position: absolute; left: 0; top: 0; width: 46px; height: 54px; margin: -50px 0 0 -23px; padding: 0; border: 0;
-    background: transparent; pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: none; }
-  #pins button svg { width: 100%; height: 100%; overflow: visible; transition: transform .2s; transform-origin: 50% 92%; filter: drop-shadow(0 2px 1.5px rgba(30, 15, 0, .35)); }
-  #pins button:hover svg { transform: scale(1.08); }
-  #pins button.sel svg { transform: scale(1.22); animation: bob 1.6s ease-in-out infinite; }
+    background: transparent; pointer-events: auto; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: none; transform-origin: 23px 50px; }
+  #pins .mk { position: absolute; left: -5px; top: -6px; width: 56px; height: 62px; display: block; pointer-events: none; -webkit-user-select: none; user-select: none;
+    transition: transform .2s; transform-origin: 28px 56px; }
+  #pins .mk-n { position: absolute; left: 23px; top: 15.7px; transform: translate(-50%, -50%); font: 400 15px/1 var(--f-kop); color: #c4612a; pointer-events: none; }
+  #pins .mk-n.samen { color: #c74a66; }
+  #pins button:hover .mk { transform: scale(1.08); }
+  #pins button.sel .mk { transform: scale(1.22); animation: bob 1.6s ease-in-out infinite; }
   @keyframes bob { 50% { transform: scale(1.22) translateY(-3px); } }
+  /* done: the kit's green clay badge top right of the marker; a cluster with only some done shows "k/n" on a small paper tag */
+  #pins button[data-done]::after { content: ""; position: absolute; left: 22px; top: -7px; width: 27px; height: 27px; pointer-events: none;
+    background: url(ui/badge-gedaan.webp) center / 100% 100% no-repeat; }
+  #pins button[data-done]:not([data-done="✓"])::after { content: attr(data-done); left: 26px; top: -4px; width: auto; height: 18px; padding: 0 5px; border-radius: 9px;
+    background: var(--cream) url(ui/papier.webp) 0 0 / 256px 256px; color: #2f6b3a; font: 700 11px/18px var(--f-tekst); box-shadow: 0 0 0 1.5px #2f6b3a, 0 1px 2px rgba(0,0,0,.35); }
   #pins button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 8px; }
 
   /* ---------- hint + loading ---------- */
@@ -131,8 +169,8 @@
   #load { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: #2a221c; transition: opacity .6s; }
   #load.gone { opacity: 0; pointer-events: none; }
   #load .paper { position: static; width: min(360px, calc(100vw - 2 * var(--gutter))); padding: 22px 22px 20px; text-align: left; }
-  #load .rx { font: 600 40px/1 Fraunces, Georgia, serif; color: var(--stamp); }
-  #load h1 { margin: 6px 0 2px; font: 600 24px/1.15 Fraunces, Georgia, serif; }
+  #load .rx { font: 600 40px/1 var(--f-kop); color: var(--stamp); }
+  #load h1 { margin: 6px 0 2px; font: 600 24px/1.15 var(--f-kop); }
   #load p { margin: 0; color: var(--ink-soft); font-size: 13.5px; }
   #load .bar { height: 10px; margin: 18px 0 8px; border-radius: 6px; background: var(--cream-2); overflow: hidden; box-shadow: inset 0 1px 2px rgba(0,0,0,.12); }
   #load .bar i { display: block; height: 100%; width: 100%; transform-origin: left; transform: scaleX(0); border-radius: 6px; transition: transform .25s;
@@ -151,28 +189,18 @@
 <body>
   <div id="intro"></div>
   <canvas id="c" aria-label="Kleien diorama van Bergen; slepen om te schuiven, knijpen of scrollen om te zoomen, met twee vingers of rechts slepen om te draaien"></canvas>
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <defs>
-      <radialGradient id="gT" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#f4b383"/><stop offset=".55" stop-color="#d9783f"/><stop offset="1" stop-color="#9c4a22"/></radialGradient>
-      <radialGradient id="gS" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#f6b8c4"/><stop offset=".55" stop-color="#d9677f"/><stop offset="1" stop-color="#97384f"/></radialGradient>
-      <radialGradient id="gC" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#fffaf0"/><stop offset=".6" stop-color="#efe3cb"/><stop offset="1" stop-color="#b9a582"/></radialGradient>
-      <linearGradient id="gPole" x1="0" x2="1"><stop offset="0" stop-color="#cdbfa8"/><stop offset="1" stop-color="#7d6d58"/></linearGradient>
-      <filter id="clay" x="-20%" y="-20%" width="140%" height="140%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/>
-        <feDisplacementMap in="SourceGraphic" scale="1.3"/></filter>
-    </defs>
-  </svg>
   <header id="title" class="paper">
     <div class="top">
-      <button id="menu-btn" aria-label="Menu: tijd en regen" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 18 18"><path d="M3 5h12M3 9h12M3 13h12"/></svg></button>
+      <button id="menu-btn" class="rond" aria-label="Menu: tijd en regen" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 18 18"><path d="M3 5h12M3 9h12M3 13h12"/></svg></button>
       <div>
         <h1><span class="rx">℞</span>Bergen, for Tess</h1>
         <p><span id="sub">Recept voor 20 t/m 24 oktober</span><span id="badge" class="badge" hidden>testdata</span></p>
+        <div id="progress" role="status"><span class="bar"><i></i></span><span id="progress-txt"></span></div>
       </div>
     </div>
-    <div id="legend" aria-label="Toon categorie"></div>
   </header>
   <nav id="menu" class="paper closed" aria-label="Menu">
-    <div class="close-row"><button id="menu-close" aria-label="Menu sluiten">×</button></div>
+    <div class="close-row"><button id="menu-close" class="rond" aria-label="Menu sluiten">×</button></div>
     <button class="row" id="time-row" aria-expanded="false" aria-controls="timebox"><span class="ico">◷</span>Tijd<span class="val" id="time-val"></span></button>
     <div id="timebox" hidden>
       <div class="now"><span id="phase">Gouden uur</span><span id="clock"></span></div>
@@ -182,24 +210,30 @@
     </div>
     <hr>
     <button class="row" id="rain" role="switch" aria-checked="false"><span class="ico">☂</span>Regen<span class="val" id="rain-val"></span><span class="switch"></span></button>
+    <hr>
+    <a class="row" id="dossier-row" href="../../bergen-dossier/"><span class="ico">℞</span>Open dossier<span class="val">&rsaquo;</span></a>
   </nav>
+  <div id="card-wrap">
   <aside id="card" class="paper" aria-live="polite">
     <div class="head"><span class="rx">℞</span><span class="who">Recept, Bergen</span><span>okt 2026</span></div>
-    <button id="close" aria-label="Sluiten">×</button>
+    <button id="close" class="rond" aria-label="Sluiten">×</button>
     <h2 id="card-title"></h2>
     <div id="card-body">
       <img id="card-img" alt="" hidden>
       <p class="txt" id="card-text"></p>
       <dl id="card-dl"></dl>
     </div>
-    <div class="foot"><span id="card-cat"></span><p class="sign hand">voorgeschreven door Niels</p></div>
+    <button id="done" class="knop knop-afvink" aria-pressed="false"><span class="vink"></span><span><span id="done-lbl">Behandeling toegediend</span><span class="sub" id="done-sub">Afvinken als het gedaan is</span></span></button>
+    <div id="done-stamp" class="stempel-toegediend" hidden aria-label="Toegediend"><time id="done-date"></time></div>
+    <div class="foot"><span id="card-cat" class="stempel"></span><p class="sign hand">voorgeschreven door Niels</p></div>
     <nav id="card-nav">
-      <button id="back" aria-label="Terug naar het overzicht"><svg viewBox="0 0 12 12"><path d="M8 2 L3 6 L8 10"/></svg> Terug</button>
-      <button id="prev" aria-label="Vorige plek"><svg viewBox="0 0 12 12"><path d="M8 2 L3 6 L8 10"/></svg></button>
+      <button id="back" class="knop" aria-label="Terug naar het overzicht"><svg viewBox="0 0 12 12"><path d="M8 2 L3 6 L8 10"/></svg> Terug</button>
+      <button id="prev" class="rond" aria-label="Vorige plek"><svg viewBox="0 0 12 12"><path d="M8 2 L3 6 L8 10"/></svg></button>
       <span id="count"></span>
-      <button id="next" aria-label="Volgende plek"><svg viewBox="0 0 12 12"><path d="M4 2 L9 6 L4 10"/></svg></button>
+      <button id="next" class="rond" aria-label="Volgende plek"><svg viewBox="0 0 12 12"><path d="M4 2 L9 6 L4 10"/></svg></button>
     </nav>
   </aside>
+  </div>
   <div id="hint" class="paper gone" role="status"></div>
   <div id="load" role="progressbar" aria-label="Laden" aria-valuemin="0" aria-valuemax="100">
     <div class="paper">

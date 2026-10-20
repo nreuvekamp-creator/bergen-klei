@@ -783,34 +783,64 @@ for (const it of hlFile.items || []) {
 // ---------- categories (a light medical wink: Tess is a doctor) ----------
 const CATS = { toerist: 'Standaardbehandeling', samen: 'Persoonlijk behandelplan' };
 const catOf = (h) => (h.categorie in CATS ? h.categorie : 'toerist');
-const showCat = { toerist: true, samen: true };
-const visible = (h) => showCat[catOf(h)];
 const nowMs = () => (Q.has('nu') ? Date.parse(Q.get('nu')) : Date.now());   // ?nu=2026-10-23T10:00 for tests
-const shadow = '<ellipse cx="23" cy="50" rx="7" ry="2.2" fill="rgba(40,20,0,.3)"/>';
-const needle = '<path d="M22.2 50 L22.2 28 L23.8 28 L23.8 50 Z" fill="url(#gPole)"/>';
-const shine = (x, y) => `<ellipse cx="${x}" cy="${y}" rx="3.4" ry="2.1" fill="#fff" opacity=".45" transform="rotate(-25 ${x} ${y})"/>`;
-const MARK = {   // clay markers: flag = standard treatment, pin with a cross = personal plan, cream head with a number = cluster
-  toerist: `<svg viewBox="0 0 46 54">${shadow}<g filter="url(#clay)"><path d="M21.7 50 L21.7 9 L24.3 9 L24.3 50 Z" fill="url(#gPole)"/>
-    <path d="M24 10 C30 7.5 34 12.5 41 10 C39 15 39.5 19.5 41 24 C34 26.5 30 21 24 23.5 Z" fill="url(#gT)"/>
-    <circle cx="23" cy="8.5" r="3.2" fill="url(#gC)"/>${shine(30, 13)}</g></svg>`,
-  samen: `<svg viewBox="0 0 46 54">${shadow}<g filter="url(#clay)">${needle}<circle cx="23" cy="18" r="12.5" fill="url(#gS)"/>
-    <path d="M20.6 11 h4.8 v4.6 h4.6 v4.8 h-4.6 v4.6 h-4.8 v-4.6 h-4.6 v-4.8 h4.6 Z" fill="#fff8ef" stroke="#fff8ef" stroke-width="1" stroke-linejoin="round"/>${shine(17.5, 12)}</g></svg>`,
-  cluster: (n, col) => `<svg viewBox="0 0 46 54">${shadow}<g filter="url(#clay)">${needle}<circle cx="23" cy="17" r="14" fill="url(#gC)" stroke="${col}" stroke-width="2.5"/>${shine(17, 11)}</g>
-    <text x="23" y="22.5" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-weight="600" font-size="15" fill="${col}">${n}</text></svg>`,
+// clay markers from the UI kit (Blender renders, ui/UI-KIT.md): flag = standard treatment, pin with a cross = personal plan,
+// cream head with a number = cluster. Image 56x62 with the ground point at (28, 56); the button is 46x54 with it at (23, 50).
+const MARK = {
+  toerist: '<img class="mk" src="ui/marker-vlag.webp" alt="" draggable="false">',
+  samen: '<img class="mk" src="ui/marker-pin.webp" alt="" draggable="false">',
+  cluster: (n, samen) => `<img class="mk" src="ui/marker-cluster-${samen ? 'samen' : 'toerist'}.webp" alt="" draggable="false"><b class="mk-n${samen ? ' samen' : ''}">${n}</b>`,
 };
-const icon = (cat) => MARK[cat].replace('viewBox="0 0 46 54"', 'viewBox="6 4 36 48"');
-for (const [cat, label] of Object.entries(CATS)) {
-  const b = Object.assign(document.createElement('button'), { className: `chip ${cat}` });
-  b.innerHTML = `<span class="box"></span>${icon(cat)}<span>${label}</span>`;
-  b.setAttribute('aria-pressed', 'true');
-  b.onclick = () => {
-    showCat[cat] = !showCat[cat];
-    b.setAttribute('aria-pressed', String(showCat[cat]));
-    if (selected >= 0 && !visible(highlights[selected])) closeCard(true);
-    pinsDirty = true;
-  };
-  $('legend').append(b);
+// ---------- 'toegediend': per place a done state, stored locally. Places the dossier also has (same origin, so the same
+// localStorage) are read and written in the dossier's own format, so a tick on the map counts there and the other way round.
+const DOS_KEY = 'bergen-dossier-v1', OWN_KEY = 'bergen-klei-gedaan';
+const DOSSIER_ID = { bryggen: 'bryggen', fisketorget: 'vismarkt', vagal: 'vagal', hotdog: 'hotdog', sandviksbatteriet: 'sandviksbatteriet', klee: 'klee', parkn: 'parkn' };
+const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+let doneT = new Map();   // highlight -> time it was ticked (ms); missing = not done
+function readDone() {
+  const dos = lsGet(DOS_KEY)?.items || {}, own = lsGet(OWN_KEY) || {};
+  doneT = new Map();
+  for (const h of highlights) {
+    const d = DOSSIER_ID[h.plek], x = d ? dos[d] : null;
+    const t = d ? (x?.done ? +x.t || 1 : 0) : +own[h.plek] || 0;
+    if (t) doneT.set(h, t);
+  }
 }
+function setDone(h, on) {
+  const t = on ? nowMs() : 0, d = DOSSIER_ID[h.plek];
+  if (d) {   // fresh read right before the write: never overwrite what the dossier saved meanwhile
+    const S = lsGet(DOS_KEY) || { items: {}, weer: '' };
+    S.items ||= {};
+    S.items[d] = { done: false, note: '', booked: false, keuze: '', t: 0, ...S.items[d], done: on, t };
+    lsSet(DOS_KEY, S);
+  } else {
+    const o = lsGet(OWN_KEY) || {};
+    if (on) o[h.plek] = t; else delete o[h.plek];
+    lsSet(OWN_KEY, o);
+  }
+  refreshDone();
+}
+const fmtDate = (t) => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', timeZone: 'Europe/Oslo' });
+function refreshDone() {
+  readDone();
+  const n = highlights.length, k = doneT.size;
+  $('progress-txt').textContent = k === n ? `Alle ${n} toegediend: Bergen is genezen` : `${k} van ${n} behandelingen toegediend`;
+  $('progress').querySelector('i').style.width = `${(100 * k / Math.max(n, 1)).toFixed(1)}%`;
+  $('progress').classList.toggle('all', k === n && n > 0);
+  if (selected >= 0) showDone(highlights[selected]);
+  pinsDirty = true;
+}
+function showDone(h) {
+  const t = doneT.get(h), card = $('card');
+  card.classList.toggle('done', !!t);
+  $('done').setAttribute('aria-pressed', String(!!t));
+  $('done-lbl').textContent = t ? 'Toegediend' : 'Behandeling toegediend';
+  $('done-sub').textContent = t ? 'Tik nogmaals om ongedaan te maken' : 'Afvinken als het gedaan is';
+  $('done-stamp').hidden = !t;
+  if (t) { $('done-date').textContent = t > 1 ? fmtDate(t) : ''; $('done-date').dateTime = t > 1 ? new Date(t).toISOString().slice(0, 10) : ''; }
+}
+$('done').onclick = () => { const h = highlights[selected]; if (h) setDone(h, !doneT.has(h)); };
 const camRightH = new THREE.Vector3(Math.cos(bearing0 * deg), -Math.sin(bearing0 * deg), 0);
 if (highlights[0] && cover[0] < tanX * .8) {   // narrow screen: start with the first place in the middle (like the flat viewer)
   T.p.addScaledVector(camRightH, highlights[0].world.clone().sub(T.p).dot(camRightH));
@@ -960,7 +990,7 @@ function fillCard(h) {
   const img = $('card-img');
   img.hidden = !h.foto;
   if (h.foto) img.src = h.foto;
-  const vis = highlights.filter(visible);
+  const vis = highlights;
   $('count').textContent = `${vis.indexOf(h) + 1} van ${vis.length}`;
   $('prev').hidden = $('next').hidden = $('count').hidden = vis.length < 2;
 }
@@ -968,8 +998,8 @@ function openCard(h, i, fly = true) {
   cancelFlight();
   if (selected < 0 && !home) home = snap(T);
   selected = i; pinsDirty = true;
-  fillCard(h);
   $('card').className = `paper open ${catOf(h)}`;
+  fillCard(h); showDone(h);
   $('card').scrollTop = 0;
   setMenu(false); $('hint').classList.add('gone');
   if (fly) flyTo(closeUp(h));
@@ -983,7 +1013,7 @@ function closeCard(back) {
 }
 $('close').onclick = $('back').onclick = () => closeCard(true);
 const stepCard = (d) => {
-  const vis = highlights.filter(visible);
+  const vis = highlights;
   if (!vis.length) return;
   const h = vis[(vis.indexOf(highlights[selected]) + d + vis.length) % vis.length];
   openCard(h, highlights.indexOf(h));
@@ -1013,28 +1043,47 @@ function openCluster(c) {
   zoomAbout(x, y, T.zoom * 2.4, 700);
 }
 let pinsDirty = true, needRender = true;
+addEventListener('storage', (e) => { if (e.key === DOS_KEY || e.key === OWN_KEY || e.key === null) refreshDone(); });   // the dossier in another tab
+addEventListener('pageshow', () => refreshDone());   // back from the dossier (bfcache)
+refreshDone();
 function layoutPins() {
   const cl = [];
   for (const h of highlights) {
-    if (!visible(h)) continue;
     const [x, y, front] = screenOf(h.world, camera);
     if (!front || x < -30 || y < -30 || x > sw + 30 || y > sh + 60) continue;
-    const c = cl.find((c) => Math.hypot(c.x - x, c.y - y) < 44);
+    const c = cl.find((c) => Math.abs(c.x - x) < 50 && Math.abs(c.y - y) < 58);   // marker boxes (46 x 54 + badge) would touch: merge
     if (c) { c.m.push(h); c.x += (x - c.x) / c.m.length; c.y += (y - c.y) / c.m.length; } else cl.push({ x, y, m: [h] });
   }
+  for (let i = 0; i < cl.length; i++) for (let j = i + 1; j < cl.length; j++) {   // centroids moved: merge clusters that now touch
+    const a = cl[i], c = cl[j];
+    if (Math.abs(a.x - c.x) >= 50 || Math.abs(a.y - c.y) >= 58) continue;
+    const n = a.m.length + c.m.length;
+    a.x = (a.x * a.m.length + c.x * c.m.length) / n; a.y = (a.y * a.m.length + c.y * c.m.length) / n; a.m.push(...c.m);
+    cl.splice(j, 1); j = i;
+  }
+  // close in, 2 or 3 places that stay on top of each other (Vågal and the hotdog are ~100 m apart) fan out: each pin keeps
+  // its foot on its own spot and leans away from the others, like pins stuck in at an angle
+  const shown = [];
+  for (const c of cl) {
+    if (c.m.length < 2 || c.m.length > 3 || C.zoom < 2.5) { shown.push(c); continue; }
+    const f = c.m.map((h) => { const [x, y] = screenOf(h.world, camera); return { x, y, m: [h] }; }).sort((a, b) => a.x - b.x);
+    f.forEach((q, i) => { q.tilt = (i - (f.length - 1) / 2) * (f.length === 2 ? 60 : 36); shown.push(q); });
+  }
   pins.forEach((b, i) => {
-    const c = cl[i];
+    const c = shown[i];
     b.hidden = !c; b.cluster = c;
     if (!c) return;
-    b.style.transform = `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px)`;
+    b.style.transform = `translate(${c.x.toFixed(1)}px, ${c.y.toFixed(1)}px)${c.tilt ? ` rotate(${c.tilt}deg)` : ''}`;
     b.classList.toggle('sel', c.m.includes(highlights[selected]));
     const one = c.m.length === 1 && c.m[0];
     const kind = one ? catOf(one) : `n${c.m.length}${c.m.every((h) => catOf(h) === 'samen') ? 's' : ''}`;
     if (b.dataset.kind !== kind) {
       b.dataset.kind = kind;
-      b.innerHTML = one ? MARK[kind] : MARK.cluster(c.m.length, kind.endsWith('s') ? 'var(--accent-samen)' : 'var(--accent)');
+      b.innerHTML = one ? MARK[kind] : MARK.cluster(c.m.length, kind.endsWith('s'));
     }
-    const label = one ? one.titel : `${c.m.length} plekken: ${c.m.map((h) => h.titel).join(', ')}`;
+    const k = c.m.filter((h) => doneT.has(h)).length, badge = !k ? '' : k === c.m.length ? '✓' : `${k}/${c.m.length}`;
+    if ((b.dataset.done || '') !== badge) { if (badge) b.dataset.done = badge; else delete b.dataset.done; }
+    const label = (one ? one.titel : `${c.m.length} plekken: ${c.m.map((h) => h.titel).join(', ')}`) + (badge ? `, toegediend: ${badge === '✓' ? 'ja' : badge}` : '');
     if (b.getAttribute('aria-label') !== label) { b.setAttribute('aria-label', label); b.title = label; }
   });
 }
@@ -1263,7 +1312,7 @@ function frame(now) {
   if (!loaded) { loaded = true; $('load').classList.add('gone'); setTimeout(showHint, 900); window.kleiLoad.ready = true; dispatchEvent(new Event('klei:ready')); }
 }
 requestAnimationFrame(frame);
-window.__viewer = { pins: () => pins.filter((b) => !b.hidden).map((b) => ({ n: b.cluster.m.length, t: b.cluster.m.map((h) => h.titel), x: b.cluster.x, y: b.cluster.y, kind: b.dataset.kind })),
+window.__viewer = { pins: () => pins.filter((b) => !b.hidden).map((b) => ({ n: b.cluster.m.length, t: b.cluster.m.map((h) => h.titel), x: b.cluster.x, y: b.cluster.y, kind: b.dataset.kind, done: b.dataset.done || '', tilt: b.cluster.tilt || 0 })),
   deep: () => deep?.state(), highlights, openCard, closeCard, data: data.base, get set() { return SET; }, T, C, LIM, setRain, toScreen: (h) => screenOf(h.world, camera),
   ground: (x, y) => { const h = hitPlane(x, y, camera, target0.z); return h ? [h.x, h.y] : [0, 0]; },
   stats, get flying() { return !!flight; }, get water() { return !!water; }, get lights() { return !!lights; }, get clock() { return clock; }, tiles: data.tiles.size };   // for tests

@@ -4,7 +4,7 @@
 //     (= different renders) gives a new cache and the old one is deleted.
 //   everything else (html, js, json, fonts css, card images, weather): network-first, cache as fallback; after 4 s
 //     without an answer the cached copy is used so a weak train connection does not hang the page.
-const DATA_VERSION = '8126171a22da';
+const DATA_VERSION = '2ac1b07e1dab';
 const DATA = `klei-data-${DATA_VERSION}`, APP = 'klei-app';
 
 self.addEventListener('install', () => self.skipWaiting());

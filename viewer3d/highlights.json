@@ -86,17 +86,17 @@
       "waar": "Marineholmen"
     },
     {
-      "titel": "Bordspelavond",
-      "tekst": "Woensdag 21 oktober in Nordnes Bydelshus. Spelletjes, thee en nieuwe mensen.",
+      "titel": "ParkN, spellencafé",
+      "tekst": "Loungebar met een spellenlounge: zo'n 50 bordspellen, van Catan en Ticket to Ride Nordic tot Pandemic, Codenames en Terraforming Mars. Binnen, dus ook bij regen.",
       "weer": "regen",
-      "kosten": "",
-      "lat": 60.399,
-      "lon": 5.311,
+      "kosten": "spellen kr 50 p.p., max 3 uur",
+      "plek": "parkn",
+      "lat": 60.3919,
+      "lon": 5.3196,
       "categorie": "samen",
-      "plek": "nordnes_bydelshus",
-      "dosering": "Woensdagavond, met thee en nieuwe mensen.",
-      "waar": "Nordnes Bydelshus",
-      "wanneer": "Woensdag 21 oktober"
+      "dosering": "Cognitieve training: 1 spel per sessie, max 3 uur. Gunstig voor geheugen en stemming.",
+      "waar": "Engen 20, bij Ole Bulls plass",
+      "wanneer": "Di en wo 14 tot 23, do 14 tot 01, vr en za 11 tot 01. Vanaf 19:00 20 jaar; vr/za-avond eerst reserveren via BOOK op parkn.no"
     },
     {
       "titel": "Ulriken",
