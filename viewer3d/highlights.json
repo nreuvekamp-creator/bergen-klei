@@ -50,18 +50,6 @@
       "waar": "Rond Torget en Fisketorget"
     },
     {
-      "titel": "Sandviksbatteriet",
-      "tekst": "Oude kustbatterij boven Sandviken, met uitzicht over de haven. Mooi bij droog weer.",
-      "weer": "zon",
-      "kosten": "gratis",
-      "lat": 60.4105,
-      "lon": 5.32,
-      "categorie": "toerist",
-      "plek": "sandviksbatteriet",
-      "dosering": "Bij droog weer, met uitzicht. Warme jas aanbevolen.",
-      "waar": "Boven Sandviken"
-    },
-    {
       "titel": "Café Klee",
       "tekst": "Herman Foss gate 12. Favoriet tot nu toe.",
       "weer": "regen",
@@ -74,18 +62,17 @@
       "waar": "Herman Foss gate 12"
     },
     {
-      "titel": "ParkN, spellencafé",
-      "tekst": "Loungebar met een spellenlounge: zo'n 50 bordspellen, van Catan en Ticket to Ride Nordic tot Pandemic, Codenames en Terraforming Mars. Binnen, dus ook bij regen.",
-      "weer": "regen",
-      "kosten": "spellen kr 50 p.p., max 3 uur",
-      "plek": "parkn",
-      "lat": 60.3919,
-      "lon": 5.3196,
-      "categorie": "samen",
-      "dosering": "Cognitieve training: 1 spel per sessie, max 3 uur. Gunstig voor geheugen en stemming.",
-      "waar": "Engen 20, bij Ole Bulls plass",
-      "wanneer": "Di en wo 14 tot 23, do 14 tot 01, vr en za 11 tot 01. Vanaf 19:00 20 jaar; vr/za-avond eerst reserveren via BOOK op parkn.no",
-      "website": "https://parkn.no/"
+      "titel": "Fløyen",
+      "tekst": "De huisberg van de stad, ruim 300 meter boven Vågen. Boven, bij het bergstation van Fløibanen en het Folkerestaurant, ligt de hele patiënt aan uw voeten.",
+      "weer": "zon",
+      "kosten": "gratis te voet; Fløibanen tegen betaling",
+      "plek": "floyen",
+      "lat": 60.39457,
+      "lon": 5.34317,
+      "categorie": "toerist",
+      "dosering": "Longtraining: 1 keer naar boven, in eigen tempo. Bij kortademigheid mag de Fløibanen. Na donker zijn de paden verlicht.",
+      "waar": "Fløyen, bij het bergstation van Fløibanen (dalstation aan Vetrlidsallmenningen)",
+      "website": "https://www.floyen.no/"
     },
     {
       "titel": "Ulriken",

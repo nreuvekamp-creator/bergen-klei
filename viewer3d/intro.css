@@ -71,6 +71,10 @@ html.intro-on #intro { display: block; }
 #intro .final .say { font-size: clamp(19px, 2.2vmin + 10px, 34px); }
 #intro .final button { justify-self: start; margin: 12px 0 4px 8px; min-height: clamp(48px, 6.4vmin, 60px); padding: 0 clamp(22px, 3vmin, 32px);
   font: 600 clamp(16px, 2.2vmin, 21px) var(--f-tekst); }   /* .knop.accent from the UI kit */
+#intro .final .acts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 20px; margin: 12px 0 4px 8px; }
+#intro .final .acts button { margin: 0; }
+#intro .final .brief { min-height: 44px; display: inline-flex; align-items: center; color: #23408e; font: 500 clamp(20px, 2.4vmin + 6px, 30px)/1 var(--f-hand);
+  text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1.5px; }   /* ontslag: link to the discharge letter */
 @media (max-width: 480px) {
   #intro .final { padding: 12px 14px 14px 6px; gap: 2px 8px; }
   #intro .final img { width: 84px; }

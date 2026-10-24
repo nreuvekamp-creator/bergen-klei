@@ -130,6 +130,7 @@
   .knop-afvink .vink { flex: none; width: 42px; height: 42px; pointer-events: none; }
   .knop-afvink .sub { display: block; font: 400 12px var(--f-tekst); color: var(--ink-soft); }
   .knop-afvink[aria-pressed=true] { color: #2f6b3a; }
+  .knop-afvink[hidden] { display: none; }   /* afgerond: nothing left to tick */
   .stempel-toegediend { position: absolute; top: 70px; right: 10px; width: 162px; height: 76px; background: url(ui/stempel-toegediend.webp) 0 0 / 100% 100%;
     transform: rotate(-6deg); mix-blend-mode: multiply; pointer-events: none; }
   .stempel-toegediend time { position: absolute; left: 47px; top: 42px; width: 94px; height: 16px; text-align: center; font: 700 17px/16px var(--f-hand); color: var(--pen); }

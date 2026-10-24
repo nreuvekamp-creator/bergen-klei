@@ -820,7 +820,8 @@ const MARK = {
 // ---------- 'toegediend': per place a done state, stored locally. Places the dossier also has (same origin, so the same
 // localStorage) are read and written in the dossier's own format, so a tick on the map counts there and the other way round.
 const DOS_KEY = 'bergen-dossier-v1', OWN_KEY = 'bergen-klei-gedaan';
-const DOSSIER_ID = { bryggen: 'bryggen', fisketorget: 'vismarkt', vagal: 'vagal', hotdog: 'hotdog', sandviksbatteriet: 'sandviksbatteriet', klee: 'klee', parkn: 'parkn' };
+const DOSSIER_ID = { bryggen: 'bryggen', fisketorget: 'vismarkt', vagal: 'vagal', hotdog: 'hotdog', klee: 'klee', floyen: 'floyen' };
+const AFGEROND = !!window.KLEI_AFGEROND;   // set in intro.js: the visit is over, every place shows as done on every device
 const lsGet = (k) => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 let doneT = new Map();   // highlight -> time it was ticked (ms); missing = not done
@@ -829,7 +830,7 @@ function readDone() {
   doneT = new Map();
   for (const h of highlights) {
     const d = DOSSIER_ID[h.plek], x = d ? dos[d] : null;
-    const t = d ? (x?.done ? +x.t || 1 : 0) : +own[h.plek] || 0;
+    const t = (d ? (x?.done ? +x.t || 1 : 0) : +own[h.plek] || 0) || +AFGEROND;
     if (t) doneT.set(h, t);
   }
 }
@@ -851,7 +852,7 @@ const fmtDate = (t) => new Date(t).toLocaleDateString('nl-NL', { day: 'numeric',
 function refreshDone() {
   readDone();
   const n = highlights.length, k = doneT.size;
-  $('progress-txt').textContent = k === n ? `Alle ${n} toegediend: Bergen is genezen` : `${k} van ${n} behandelingen toegediend`;
+  $('progress-txt').textContent = AFGEROND ? 'Alle behandelingen toegediend: Bergen is genezen' : k === n ? `Alle ${n} toegediend: Bergen is genezen` : `${k} van ${n} behandelingen toegediend`;
   $('progress').querySelector('i').style.width = `${(100 * k / Math.max(n, 1)).toFixed(1)}%`;
   $('progress').classList.toggle('all', k === n && n > 0);
   if (selected >= 0) showDone(highlights[selected]);
@@ -864,9 +865,10 @@ function showDone(h) {
   $('done-lbl').textContent = t ? 'Toegediend' : 'Behandeling toegediend';
   $('done-sub').textContent = t ? 'Tik nogmaals om ongedaan te maken' : 'Afvinken als het gedaan is';
   $('done-stamp').hidden = !t;
-  if (t) { $('done-date').textContent = t > 1 ? fmtDate(t) : ''; $('done-date').dateTime = t > 1 ? new Date(t).toISOString().slice(0, 10) : ''; }
+  if (t) { $('done-date').textContent = t > 1 ? fmtDate(t) : AFGEROND ? 'okt 2026' : ''; $('done-date').dateTime = t > 1 ? new Date(t).toISOString().slice(0, 10) : AFGEROND ? '2026-10' : ''; }
 }
-$('done').onclick = () => { const h = highlights[selected]; if (h) setDone(h, !doneT.has(h)); };
+$('done').onclick = () => { const h = highlights[selected]; if (h && !AFGEROND) setDone(h, !doneT.has(h)); };
+$('done').hidden = AFGEROND;
 const camRightH = new THREE.Vector3(Math.cos(bearing0 * deg), -Math.sin(bearing0 * deg), 0);
 if (highlights[0] && cover[0] < tanX * .8) {   // narrow screen: start with the first place in the middle (like the flat viewer)
   T.p.addScaledVector(camRightH, highlights[0].world.clone().sub(T.p).dot(camRightH));
