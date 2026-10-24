@@ -22,7 +22,7 @@ window.KLEI_AFGEROND = AFGEROND;   // read by main.js
       wait: { fig: '04_herstellend', label: 'Even geduld', say: 'De stad wordt nog in klei gezet. Ik wacht zolang hier, met thee.' } },
     ontslag: { key: 'bergen-klei-ontslag', aria: 'Ontslag: Bergen vertelt', steps: [
       { fig: '06_opgelucht', label: 'Ontslaggesprek', say: 'Goedemorgen, dokter. Ik kom me afmelden: de klachten zijn verdwenen, ook in de avonduren.' },
-      { fig: '06_opgelucht', label: 'Verloop', say: 'Het verloop was gunstig. Bryggen in de regen, Fløyen op, de hotdog één keer en niet vaker. Later de sauna bij Laugaren en een diner bij Lysverket, aan het raam. Alles goed verdragen.' },
+      { fig: '06_opgelucht', label: 'Verloop', say: 'Het verloop was gunstig. U schreef Bryggen voor, Fløyen, de vismarkt en de verplichte hotdog. Later de sauna bij Laugaren en een diner bij Lysverket, aan het raam. Alles goed verdragen.' },
       { fig: '07_gezond', label: 'Eindoordeel', say: 'Klinisch hersteld. De stad heeft weer kleur, ook als het regent.',
         note: 'De regen zelf blijft. Dat is geen klacht, maar een constitutioneel kenmerk.' },
       { fig: '07_gezond', label: 'Beleid', say: 'Poliklinische controle na de kerst, op 27 december. Ditmaal hoeft u niet te reizen: de assistent komt naar u toe.' },
